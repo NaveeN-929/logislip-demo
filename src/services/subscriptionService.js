@@ -1,0 +1,870 @@
+import userService from './userService'
+import { supabase } from '../config/supabase'
+
+class SubscriptionService {
+  constructor() {
+    // UPI/Razorpay integration for Indian payments
+    this.razorpay = null
+  }
+
+  // Subscription plans configuration with detailed limitations
+  getSubscriptionPlans() {
+    return {
+      free: {
+        id: 'free',
+        name: 'Free',
+        features: [
+          '3 invoices save & export',
+          '1 client',
+          '1 product',
+          'PDF export only',
+          'Manual sync only',
+          'Default template only',
+          'No custom templates',
+          'No priority support',
+          'No Drive export',
+          'No email sharing'
+        ],
+        // Detailed limitations
+        limitations: {
+          exportFormats: ['pdf'],
+          autoSyncFrequency: 'manual', // manual only
+          templateAccess: ['default'], // default only
+          customTemplates: false,
+          supportLevel: 'none',
+          invoicesSaveExport: 3,
+          clients: 1,
+          products: 1, // Fixed: should be 1, not 5
+          exportToDrive: false,
+          emailShare: false
+        },
+        monthlyInvoiceLimit: 3,
+        billing: {
+          monthly: { 
+            price: 0, 
+            currency: 'INR', 
+            interval: 'month',
+            usageLimit: 3,
+            razorpayPlanId: null,
+            savings: 0 
+          }
+        },
+        popular: false
+      },
+      pro: {
+        id: 'pro',
+        name: 'Pro',
+        features: [
+          '50 invoices save & export',
+          '50 clients',
+          '50 products',
+          'PDF + Drive export',
+          'Auto-sync every 30 minutes',
+          'Default + Modern + Formal templates',
+          'No custom templates',
+          'Email support',
+          'Drive export enabled',
+          'Email sharing enabled'
+        ],
+        // Detailed limitations
+        limitations: {
+          exportFormats: ['pdf', 'drive'],
+          autoSyncFrequency: '30min', // every 30 minutes
+          templateAccess: ['default', 'modern', 'formal'],
+          customTemplates: false,
+          supportLevel: 'email',
+          invoicesSaveExport: 50,
+          clients: 50,
+          products: 50,
+          exportToDrive: true,
+          emailShare: true
+        },
+        monthlyInvoiceLimit: 50,
+        billing: {
+          monthly: { 
+            price: 499, 
+            currency: 'INR', 
+            interval: 'month',
+            usageLimit: 50,
+            razorpayPlanId: 'plan_pro_monthly_inr',
+            savings: 0 
+          },
+          quarterly: { 
+            price: 1347, 
+            currency: 'INR', 
+            interval: '3 months',
+            usageLimit: 150,
+            razorpayPlanId: 'plan_pro_quarterly_inr',
+            savings: 10 // 10% savings
+          },
+          halfYearly: { 
+            price: 2495, 
+            currency: 'INR', 
+            interval: '6 months',
+            usageLimit: 300,
+            razorpayPlanId: 'plan_pro_halfyearly_inr',
+            savings: 17 // 17% savings
+          },
+          annual: { 
+            price: 4790, 
+            currency: 'INR', 
+            interval: 'year',
+            usageLimit: 600,
+            razorpayPlanId: 'plan_pro_annual_inr',
+            savings: 20 // 20% savings
+          }
+        },
+        popular: true
+      },
+      business: {
+        id: 'business',
+        name: 'Business',
+        features: [
+          'Unlimited invoices save & export',
+          'Unlimited clients',
+          'Unlimited products',
+          'All export formats',
+          'Auto-sync every 5 minutes',
+          'All templates available',
+          'Custom templates enabled',
+          'Priority support',
+          'Drive export enabled',
+          'Email sharing enabled'
+        ],
+        // Detailed limitations
+        limitations: {
+          exportFormats: ['pdf', 'drive', 'csv', 'xlsx', 'json'],
+          autoSyncFrequency: '5min', // every 5 minutes
+          templateAccess: ['default', 'modern', 'formal', 'custom'],
+          customTemplates: true,
+          supportLevel: 'priority',
+          invoicesSaveExport: -1, // unlimited
+          clients: -1, // unlimited
+          products: -1, // unlimited
+          exportToDrive: true,
+          emailShare: true
+        },
+        monthlyInvoiceLimit: -1, // Unlimited
+        billing: {
+          monthly: { 
+            price: 1999, 
+            currency: 'INR', 
+            interval: 'month',
+            usageLimit: -1,
+            razorpayPlanId: 'plan_business_monthly_inr',
+            savings: 0 
+          },
+          quarterly: { 
+            price: 5397, 
+            currency: 'INR', 
+            interval: '3 months',
+            usageLimit: -1,
+            razorpayPlanId: 'plan_business_quarterly_inr',
+            savings: 10 // 10% savings
+          },
+          halfYearly: { 
+            price: 9995, 
+            currency: 'INR', 
+            interval: '6 months',
+            usageLimit: -1,
+            razorpayPlanId: 'plan_business_halfyearly_inr',
+            savings: 17 // 17% savings
+          },
+          annual: { 
+            price: 19990, 
+            currency: 'INR', 
+            interval: 'year',
+            usageLimit: -1,
+            razorpayPlanId: 'plan_business_annual_inr',
+            savings: 17 // 17% savings
+          }
+        },
+        popular: false
+      }
+    }
+  }
+
+  // Create UPI/Razorpay payment session
+  async createPaymentSession(planId, billingCycle, billingInfo) {
+    const plans = this.getSubscriptionPlans()
+    const selectedPlan = plans[planId]
+    
+    if (!selectedPlan || !billingInfo.razorpayPlanId) {
+      throw new Error('Invalid subscription plan or billing cycle')
+    }
+
+    const user = userService.getCurrentUser()
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+
+    try {
+      // Create payment session in Supabase
+      const paymentData = {
+        user_id: user.id,
+        plan_id: planId,
+        billing_cycle: billingCycle,
+        amount: billingInfo.price,
+        currency: billingInfo.currency,
+        status: 'pending',
+        payment_method: 'upi',
+        razorpay_plan_id: billingInfo.razorpayPlanId,
+        created_at: new Date().toISOString()
+      }
+
+      const { data: payment, error } = await supabase
+        .from('payments')
+        .insert(paymentData)
+        .select()
+        .single()
+
+      if (error) throw error
+
+      // Generate UPI payment details
+      const upiPaymentDetails = this.generateUPIPaymentDetails(payment, selectedPlan, billingInfo)
+      
+      return {
+        success: true,
+        paymentId: payment.id,
+        plan: selectedPlan,
+        billing: billingInfo,
+        upiDetails: upiPaymentDetails
+      }
+      
+    } catch (error) {
+      console.error('Payment session creation error:', error)
+      throw new Error('Failed to create payment session')
+    }
+  }
+
+  // Generate UPI payment details and QR code data
+  generateUPIPaymentDetails(payment, plan, billingInfo) {
+    const merchantId = process.env.REACT_APP_UPI_MERCHANT_ID || 'logislip@upi'
+    const merchantName = process.env.REACT_APP_UPI_MERCHANT_NAME || 'LogiSlip'
+    
+    // UPI payment URL format
+    const upiUrl = `upi://pay?pa=${merchantId}&pn=${merchantName}&am=${billingInfo.price}&cu=${billingInfo.currency}&tn=LogiSlip ${plan.name} Plan - Payment ID: ${payment.id}`
+    
+    return {
+      upiUrl,
+      qrCodeData: upiUrl,
+      amount: billingInfo.price,
+      currency: billingInfo.currency,
+      merchantId,
+      merchantName,
+      transactionNote: `LogiSlip ${plan.name} Plan - Payment ID: ${payment.id}`,
+      paymentId: payment.id
+    }
+  }
+
+  // Verify and confirm UPI payment
+  async confirmPayment(paymentId, transactionId) {
+    try {
+      // Update payment status in Supabase
+      const { data: payment, error: paymentError } = await supabase
+        .from('payments')
+        .update({
+          status: 'completed',
+          transaction_id: transactionId,
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', paymentId)
+        .select()
+        .single()
+
+      if (paymentError) throw paymentError
+
+      // Get plan details
+      const plans = this.getSubscriptionPlans()
+      const selectedPlan = plans[payment.plan_id]
+    
+    // Update user subscription
+    const subscriptionData = {
+        tier: payment.plan_id,
+      status: 'active',
+        endDate: this.calculateEndDate(payment.billing_cycle),
+        usageLimit: selectedPlan.limitations.invoicesSaveExport,
+        payment_id: paymentId
+    }
+    
+    await userService.updateSubscription(subscriptionData)
+    
+    return {
+      success: true,
+      subscriptionId: `sub_${Date.now()}`,
+        plan: selectedPlan,
+        payment: payment
+      }
+    } catch (error) {
+      console.error('Payment confirmation error:', error)
+      throw new Error('Failed to confirm payment')
+    }
+  }
+
+  // Calculate subscription end date
+  calculateEndDate(interval) {
+    const now = new Date()
+    if (interval === 'month') {
+      now.setMonth(now.getMonth() + 1)
+    } else if (interval === '3 months') {
+      now.setMonth(now.getMonth() + 3)
+    } else if (interval === '6 months') {
+      now.setMonth(now.getMonth() + 6)
+    } else if (interval === 'year') {
+      now.setFullYear(now.getFullYear() + 1)
+    }
+    return now.toISOString()
+  }
+
+  // Cancel subscription
+  async cancelSubscription() {
+    const user = userService.getCurrentUser()
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+
+    try {
+      const subscriptionData = {
+        tier: 'free',
+        status: 'cancelled',
+        endDate: null,
+        usageLimit: 36
+      }
+      
+      await userService.updateSubscription(subscriptionData)
+      
+      return { success: true }
+    } catch (error) {
+      // Silent - subscription errors should not expose details
+      throw error
+    }
+  }
+
+  // Get current subscription status
+  getCurrentSubscription() {
+    const user = userService.getCurrentUser()
+    if (!user) return null
+
+    const plans = this.getSubscriptionPlans()
+    const currentPlan = plans[user.subscription_tier]
+    
+    return {
+      plan: currentPlan,
+      status: user.subscription_status,
+      endDate: user.subscription_end_date,
+      usageCount: user.usage_count,
+      usageLimit: user.usage_limit,
+      remainingUsage: userService.getRemainingUsage()
+    }
+  }
+
+  // Track usage for specific actions
+  async trackUsage(actionType, resourceData = {}) {
+    const user = userService.getCurrentUser()
+    if (!user) return false
+
+    try {
+      // Log the usage action
+      await userService.logUserAction(actionType, {
+        resource_type: actionType,
+        resource_id: resourceData.id || null,
+        timestamp: Date.now(),
+        user_tier: user.subscription_tier,
+        ...resourceData
+      })
+
+      return true
+    } catch (error) {
+      console.error('Error tracking usage:', error)
+      return false
+    }
+  }
+
+  // Get usage counts for different resource types
+  async getResourceUsageCounts() {
+    const user = userService.getCurrentUser()
+    if (!user) return {}
+
+    try {
+      // Get counts from localStorage using the actual keys used by the app
+      const clients = JSON.parse(localStorage.getItem('clients') || '[]')
+      const products = JSON.parse(localStorage.getItem('products') || '[]')
+      const invoices = JSON.parse(localStorage.getItem('invoices') || '[]')
+      
+      // For exports and email shares, we track these in separate counters
+      const exportCount = parseInt(localStorage.getItem('invoice_export_count') || '0')
+      const emailShareCount = parseInt(localStorage.getItem('email_share_count') || '0')
+
+      const counts = {
+        clients: clients.length,
+        products: products.length,
+        invoices: invoices.length,
+        invoice_exports: exportCount,
+        email_shares: emailShareCount
+      }
+
+      console.log('DEBUG: Current usage counts:', counts)
+      return counts
+    } catch (error) {
+      console.error('Error getting usage counts:', error)
+      return {
+        clients: 0,
+        products: 0,
+        invoices: 0,
+        invoice_exports: 0,
+        email_shares: 0
+      }
+    }
+  }
+
+  // Increment usage counter for specific action
+  incrementUsageCount(actionType) {
+    try {
+      let currentCount = 0;
+      
+      // Handle different action types with proper localStorage keys
+      switch (actionType) {
+        case 'clients':
+          const clients = JSON.parse(localStorage.getItem('clients') || '[]')
+          currentCount = clients.length
+          console.log(`DEBUG: Client count after creation: ${currentCount}`)
+          break
+        case 'products':
+          const products = JSON.parse(localStorage.getItem('products') || '[]')
+          currentCount = products.length
+          console.log(`DEBUG: Product count after creation: ${currentCount}`)
+          break
+        case 'invoices':
+          const invoices = JSON.parse(localStorage.getItem('invoices') || '[]')
+          currentCount = invoices.length
+          console.log(`DEBUG: Invoice count after creation: ${currentCount}`)
+          break
+        case 'invoice_exports':
+          currentCount = parseInt(localStorage.getItem('invoice_export_count') || '0')
+          localStorage.setItem('invoice_export_count', (currentCount + 1).toString())
+          currentCount = currentCount + 1
+          console.log(`DEBUG: Export count after increment: ${currentCount}`)
+          break
+        case 'email_shares':
+          currentCount = parseInt(localStorage.getItem('email_share_count') || '0')
+          localStorage.setItem('email_share_count', (currentCount + 1).toString())
+          currentCount = currentCount + 1
+          console.log(`DEBUG: Email share count after increment: ${currentCount}`)
+          break
+        default:
+          currentCount = parseInt(localStorage.getItem(`${actionType}_count`) || '0')
+          localStorage.setItem(`${actionType}_count`, (currentCount + 1).toString())
+          currentCount = currentCount + 1
+      }
+      
+      // Track the action
+      this.trackUsage(actionType, { count: currentCount })
+      
+      return currentCount
+    } catch (error) {
+      console.error('Error incrementing usage count:', error)
+      return 0
+    }
+  }
+
+  // Check if subscription is active
+  isSubscriptionActive() {
+    const user = userService.getCurrentUser()
+    if (!user) return false
+
+    if (user.subscription_tier === 'free') return true
+    
+    if (user.subscription_status !== 'active') return false
+    
+    if (user.subscription_end_date) {
+      return new Date(user.subscription_end_date) > new Date()
+    }
+    
+    return true
+  }
+
+  // Get usage statistics
+  getUsageStats() {
+    const user = userService.getCurrentUser()
+    if (!user) return null
+
+    const usagePercentage = user.usage_limit > 0 
+      ? (user.usage_count / user.usage_limit) * 100 
+      : 0
+
+    return {
+      current: user.usage_count,
+      limit: user.usage_limit,
+      remaining: userService.getRemainingUsage(),
+      percentage: Math.min(usagePercentage, 100),
+      isUnlimited: user.usage_limit === -1
+    }
+  }
+
+  // Check if user can use specific feature based on their plan
+  canUseFeature(feature) {
+    const user = userService.getCurrentUser()
+    if (!user) return false
+
+    const plans = this.getSubscriptionPlans()
+    const currentPlan = plans[user.subscription_tier] || plans.free
+    const limitations = currentPlan.limitations
+
+    switch (feature) {
+      case 'export_pdf':
+        return limitations.exportFormats.includes('pdf')
+      
+      case 'export_drive':
+        return limitations.exportToDrive && limitations.exportFormats.includes('drive')
+      
+      case 'export_csv':
+        return limitations.exportFormats.includes('csv')
+      
+      case 'export_xlsx':
+        return limitations.exportFormats.includes('xlsx')
+      
+      case 'export_json':
+        return limitations.exportFormats.includes('json')
+      
+      case 'email_share':
+        return limitations.emailShare
+      
+      case 'auto_sync_30min':
+        return limitations.autoSyncFrequency === '30min' || limitations.autoSyncFrequency === '5min'
+      
+      case 'auto_sync_5min':
+        return limitations.autoSyncFrequency === '5min'
+      
+      case 'template_modern':
+        return limitations.templateAccess.includes('modern')
+      
+      case 'template_formal':
+        return limitations.templateAccess.includes('formal')
+      
+      case 'custom_templates':
+        return limitations.customTemplates
+      
+      case 'priority_support':
+        return limitations.supportLevel === 'priority'
+      
+      case 'email_support':
+        return limitations.supportLevel === 'email' || limitations.supportLevel === 'priority'
+      
+      default:
+        return true
+    }
+  }
+
+  // Check if user has reached limit for a specific resource - WITH REAL-TIME CHECKING
+  hasReachedLimit(resourceType, currentCount = null) {
+    const user = userService.getCurrentUser()
+    if (!user) return true
+
+    const plans = this.getSubscriptionPlans()
+    const currentPlan = plans[user.subscription_tier] || plans.free
+    const limitations = currentPlan.limitations
+
+    // Get real-time count if not provided
+    if (currentCount === null) {
+      switch (resourceType) {
+        case 'clients':
+          const clients = JSON.parse(localStorage.getItem('clients') || '[]')
+          currentCount = clients.length
+          break
+        case 'products':
+          const products = JSON.parse(localStorage.getItem('products') || '[]')
+          currentCount = products.length
+          break
+        case 'invoices':
+          const invoices = JSON.parse(localStorage.getItem('invoices') || '[]')
+          currentCount = invoices.length
+          break
+        case 'invoice_exports':
+          currentCount = parseInt(localStorage.getItem('invoice_export_count') || '0')
+          break
+        case 'email_shares':
+          currentCount = parseInt(localStorage.getItem('email_share_count') || '0')
+          break
+        default:
+          currentCount = 0
+      }
+    }
+
+    let hasReached = false;
+    switch (resourceType) {
+      case 'invoices':
+      case 'invoice_exports':
+        hasReached = limitations.invoicesSaveExport !== -1 && currentCount >= limitations.invoicesSaveExport
+        break
+      
+      case 'clients':
+        hasReached = limitations.clients !== -1 && currentCount >= limitations.clients
+        break
+      
+      case 'products':
+        hasReached = limitations.products !== -1 && currentCount >= limitations.products
+        break
+      
+      case 'email_shares':
+        // Free users cannot share via email at all
+        if (!limitations.emailShare) hasReached = true
+        // Pro users have a limit of 50, Business users unlimited
+        else hasReached = limitations.invoicesSaveExport !== -1 && currentCount >= limitations.invoicesSaveExport
+        break
+      
+      default:
+        hasReached = false
+    }
+
+    console.log(`DEBUG: Limit check for ${resourceType}:`, {
+      currentCount,
+      limit: limitations[resourceType] || limitations.invoicesSaveExport,
+      hasReached,
+      planTier: currentPlan.id
+    })
+
+    return hasReached
+  }
+
+  // Check if user can create a new resource (before creation) - ENHANCED
+  canCreateResource(resourceType, currentCount = null) {
+    const user = userService.getCurrentUser()
+    if (!user) {
+      console.log('DEBUG: No user found, blocking resource creation')
+      return false
+    }
+
+    // Get real-time count if not provided
+    if (currentCount === null) {
+      switch (resourceType) {
+        case 'clients':
+          const clients = JSON.parse(localStorage.getItem('clients') || '[]')
+          currentCount = clients.length
+          break
+        case 'products':
+          const products = JSON.parse(localStorage.getItem('products') || '[]')
+          currentCount = products.length
+          break
+        case 'invoices':
+          const invoices = JSON.parse(localStorage.getItem('invoices') || '[]')
+          currentCount = invoices.length
+          break
+        case 'invoice_exports':
+          currentCount = parseInt(localStorage.getItem('invoice_export_count') || '0')
+          break
+        case 'email_shares':
+          currentCount = parseInt(localStorage.getItem('email_share_count') || '0')
+          break
+        default:
+          currentCount = 0
+      }
+    }
+
+    const canCreate = !this.hasReachedLimit(resourceType, currentCount)
+    console.log(`DEBUG: Can create ${resourceType}:`, {
+      currentCount,
+      canCreate,
+      userTier: user.subscription_tier
+    })
+    
+    return canCreate
+  }
+
+  // Check if user can export with specific format
+  canExportFormat(format, currentExportCount = null) {
+    const user = userService.getCurrentUser()
+    if (!user) return false
+
+    const plans = this.getSubscriptionPlans()
+    const currentPlan = plans[user.subscription_tier] || plans.free
+    const limitations = currentPlan.limitations
+
+    // Check if format is allowed
+    const formatAllowed = limitations.exportFormats.includes(format.toLowerCase())
+    if (!formatAllowed) {
+      console.log(`DEBUG: Export format ${format} not allowed for ${currentPlan.id} plan`)
+      return false
+    }
+
+    // Get real-time export count if not provided
+    if (currentExportCount === null) {
+      currentExportCount = parseInt(localStorage.getItem('invoice_export_count') || '0')
+    }
+
+    // Check export count limits
+    if (format.toLowerCase() === 'drive') {
+      const canExport = limitations.exportToDrive && !this.hasReachedLimit('invoice_exports', currentExportCount)
+      console.log(`DEBUG: Drive export check:`, {
+        exportToDriveAllowed: limitations.exportToDrive,
+        currentExportCount,
+        limitReached: this.hasReachedLimit('invoice_exports', currentExportCount),
+        canExport
+      })
+      return canExport
+    }
+
+    const canExport = !this.hasReachedLimit('invoice_exports', currentExportCount)
+    console.log(`DEBUG: ${format} export check:`, {
+      currentExportCount,
+      limitReached: this.hasReachedLimit('invoice_exports', currentExportCount),
+      canExport
+    })
+    return canExport
+  }
+
+  // Check if user can use specific template
+  canUseTemplate(templateName) {
+    const user = userService.getCurrentUser()
+    if (!user) return false
+
+    const plans = this.getSubscriptionPlans()
+    const currentPlan = plans[user.subscription_tier] || plans.free
+    const limitations = currentPlan.limitations
+
+    // Default template is always available
+    if (templateName === 'default') return true
+
+    // Check if template is in allowed list
+    return limitations.templateAccess.includes(templateName.toLowerCase())
+  }
+
+  // Check if user can share via email
+  canShareViaEmail(currentEmailShares = null) {
+    const user = userService.getCurrentUser()
+    if (!user) return false
+
+    const plans = this.getSubscriptionPlans()
+    const currentPlan = plans[user.subscription_tier] || plans.free
+    const limitations = currentPlan.limitations
+
+    // Free users cannot share via email
+    if (!limitations.emailShare) {
+      console.log(`DEBUG: Email sharing not allowed for ${currentPlan.id} plan`)
+      return false
+    }
+
+    // Get real-time email share count if not provided
+    if (currentEmailShares === null) {
+      currentEmailShares = parseInt(localStorage.getItem('email_share_count') || '0')
+    }
+
+    // Check count limits for Pro users
+    const canShare = !this.hasReachedLimit('email_shares', currentEmailShares)
+    console.log(`DEBUG: Email share check:`, {
+      emailShareAllowed: limitations.emailShare,
+      currentEmailShares,
+      limitReached: this.hasReachedLimit('email_shares', currentEmailShares),
+      canShare
+    })
+    return canShare
+  }
+
+  // Get resource limits for current plan
+  getResourceLimits() {
+    const user = userService.getCurrentUser()
+    if (!user) return null
+
+    const plans = this.getSubscriptionPlans()
+    const currentPlan = plans[user.subscription_tier] || plans.free
+
+    return currentPlan.limitations
+  }
+
+  // Get auto-sync frequency in minutes (0 = manual only)
+  getAutoSyncFrequency() {
+    const user = userService.getCurrentUser()
+    if (!user) return 0
+
+    const plans = this.getSubscriptionPlans()
+    const currentPlan = plans[user.subscription_tier] || plans.free
+    
+    switch (currentPlan.limitations.autoSyncFrequency) {
+      case '5min':
+        return 5
+      case '30min':
+        return 30
+      case 'manual':
+      default:
+        return 0 // Manual only
+    }
+  }
+
+  // Handle webhook events for UPI/Razorpay (for production use)
+  async handleWebhookEvent(event) {
+    switch (event.type) {
+      case 'payment.captured':
+        await this.handlePaymentCaptured(event.data.object)
+        break
+      case 'payment.failed':
+        await this.handlePaymentFailed(event.data.object)
+        break
+      case 'subscription.cancelled':
+        await this.handleSubscriptionCancelled(event.data.object)
+        break
+      default:
+        console.log('Unhandled webhook event:', event.type)
+    }
+  }
+
+  async handlePaymentCaptured(payment) {
+    try {
+      // Find payment in Supabase
+      const { data: paymentRecord, error } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('razorpay_payment_id', payment.id)
+        .single()
+
+      if (error || !paymentRecord) {
+        console.error('Payment record not found:', payment.id)
+        return
+      }
+
+      // Confirm the payment
+      await this.confirmPayment(paymentRecord.id, payment.id)
+    } catch (error) {
+      console.error('Error handling payment captured:', error)
+    }
+  }
+
+  async handlePaymentFailed(payment) {
+    try {
+      // Update payment status to failed
+      await supabase
+        .from('payments')
+        .update({ 
+          status: 'failed',
+          failure_reason: payment.error_description 
+        })
+        .eq('razorpay_payment_id', payment.id)
+    } catch (error) {
+      console.error('Error handling payment failed:', error)
+    }
+  }
+
+  async handleSubscriptionCancelled(subscription) {
+    try {
+      // Find user by subscription ID and update to free tier
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('razorpay_subscription_id', subscription.id)
+        .single()
+
+      if (error || !user) return
+
+      await userService.updateSubscription({
+        tier: 'free',
+        status: 'cancelled',
+        endDate: null,
+        usageLimit: 3
+      })
+    } catch (error) {
+      console.error('Error handling subscription cancelled:', error)
+    }
+  }
+}
+
+// Create singleton instance
+const subscriptionService = new SubscriptionService()
+export default subscriptionService 

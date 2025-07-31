@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gmail API 403 Error Fix</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .error { background: #fee; border: 1px solid #fcc; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .success { background: #efe; border: 1px solid #cfc; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .warning { background: #ffc; border: 1px solid #ff9; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .code { background: #f5f5f5; padding: 10px; border-radius: 5px; font-family: monospace; }
+        button { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Gmail API 403 Error Fix</h1>
+    
+    <div class="error">
+        <h3>❌ Current Issue</h3>
+        <p>You're getting <strong>403 Forbidden</strong> errors when trying to access Gmail API. This means the Gmail API is rejecting your requests.</p>
+    </div>
+    
+    <div class="warning">
+        <h3>⚠️ Most Common Causes</h3>
+        <ol>
+            <li><strong>Gmail API not enabled</strong> in Google Cloud Console</li>
+            <li><strong>OAuth token missing Gmail scope</strong></li>
+            <li><strong>OAuth consent screen not configured</strong> with Gmail scope</li>
+        </ol>
+    </div>
+    
+    <h2>🎯 Quick Fix Steps</h2>
+    
+    <div class="success">
+        <h3>Step 1: Enable Gmail API in Google Cloud Console</h3>
+        <ol>
+            <li>Go to <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a></li>
+            <li>Navigate to <strong>"APIs & Services" → "Library"</strong></li>
+            <li>Search for <strong>"Gmail API"</strong></li>
+            <li>Click <strong>"Enable"</strong></li>
+            <li>Wait 5-10 minutes for activation</li>
+        </ol>
+    </div>
+    
+    <div class="success">
+        <h3>Step 2: Update OAuth Consent Screen</h3>
+        <ol>
+            <li>Go to <strong>"APIs & Services" → "OAuth consent screen"</strong></li>
+            <li>Click <strong>"Edit App"</strong></li>
+            <li>Go to <strong>"Scopes"</strong> section</li>
+            <li>Click <strong>"Add or Remove Scopes"</strong></li>
+            <li>Add these scopes:
+                <div class="code">
+                    ../auth/drive.file<br>
+                    ../auth/gmail.send
+                </div>
+            </li>
+            <li>Save changes</li>
+        </ol>
+    </div>
+    
+    <div class="success">
+        <h3>Step 3: Re-authenticate Users</h3>
+        <ol>
+            <li>In your LogiSlip app, sign out from Google</li>
+            <li>Clear browser cache for localhost:3000</li>
+            <li>Sign in again with Google</li>
+            <li>Accept <strong>ALL permissions</strong> (Drive + Gmail)</li>
+        </ol>
+    </div>
+    
+    <h2>🔍 Diagnostic Tools</h2>
+    <p>Open your browser console (F12) in the LogiSlip app and run these commands:</p>
+    
+    <div class="code">
+        // Check if token exists<br>
+        // Silent - token existence check should not log<br><br>
+        
+        // Check token scopes<br>
+        checkTokenScopes();<br><br>
+        
+        // Test Gmail API access<br>
+        testGmailAccess();<br><br>
+        
+        // Full diagnosis<br>
+        immediateGmailDiagnosis();
+    </div>
+    
+    <h2>🎮 Interactive Test</h2>
+    <button onclick="testGmailSetup()">Test Gmail Setup</button>
+    <button onclick="clearAuthData()">Clear Auth Data</button>
+    
+    <div id="results"></div>
+    
+    <script>
+        async function testGmailSetup() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<p>Testing Gmail setup...</p>';
+            
+            try {
+                // Check if we're on the right domain
+                if (!window.location.hostname.includes('localhost')) {
+                    results.innerHTML = '<div class="error">Please run this test from your LogiSlip app (http://localhost:3000)</div>';
+                    return;
+                }
+                
+                // Get token
+                const token = localStorage.getItem('googleAccessToken');
+                if (!token) {
+                    results.innerHTML = '<div class="error">No Google token found. Please sign in with Google first.</div>';
+                    return;
+                }
+                
+                // Test token scopes
+                const tokenResponse = await fetch(`https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${token}`);
+                if (!tokenResponse.ok) {
+                    results.innerHTML = '<div class="error">Token is invalid. Please sign out and sign in again.</div>';
+                    return;
+                }
+                
+                const tokenInfo = await tokenResponse.json();
+                const hasGmailScope = tokenInfo.scope && tokenInfo.scope.includes('https://www.googleapis.com/auth/gmail.send');
+                
+                if (!hasGmailScope) {
+                    results.innerHTML = '<div class="error">Token missing Gmail scope. Please re-authenticate with Gmail permissions.</div>';
+                    return;
+                }
+                
+                // Test Gmail API
+                const gmailResponse = await fetch('https://www.googleapis.com/gmail/v1/users/me/profile', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (gmailResponse.status === 403) {
+                    results.innerHTML = '<div class="error">Gmail API not enabled. Please enable Gmail API in Google Cloud Console.</div>';
+                    return;
+                }
+                
+                if (gmailResponse.ok) {
+                    results.innerHTML = '<div class="success">✅ Gmail setup is working correctly!</div>';
+                } else {
+                    results.innerHTML = `<div class="error">Gmail API error: ${gmailResponse.status}</div>`;
+                }
+                
+            } catch (error) {
+                results.innerHTML = `<div class="error">Test failed: ${error.message}</div>`;
+            }
+        }
+        
+        function clearAuthData() {
+            localStorage.removeItem('googleAccessToken');
+            if (window.googleAuthDrive) {
+                delete window.googleAuthDrive;
+            }
+            document.getElementById('results').innerHTML = '<div class="success">Authentication data cleared. Please sign in again.</div>';
+        }
+    </script>
+</body>
+</html> 
