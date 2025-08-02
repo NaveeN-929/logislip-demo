@@ -1,7 +1,7 @@
 import { supabase } from '../config/supabase'
 import { v4 as uuidv4 } from 'uuid'
 import Cookies from 'js-cookie'
-import { sanitizeDataForStorage } from '../utils/storage'
+
 import secureLogger from '../utils/secureLogger'
 
 class UserService {
@@ -100,7 +100,7 @@ class UserService {
   async authenticateUser(googleProfile, accessToken) {
     try {
       // Check if user exists
-      const { data: existingUser, error: _fetchError } = await supabase
+      const { data: existingUser } = await supabase
         .from('users')
         .select('*')
         .eq('google_id', googleProfile.id)
@@ -130,8 +130,7 @@ class UserService {
         if (updateError) throw updateError
         user = updatedUser
         
-        // For existing users, sync localStorage counts to Supabase
-        await this.syncLocalStorageCountsToSupabase()
+
       } else {
         // Create new user - generate random avatar if Google doesn't provide picture
         const avatarUrl = googleProfile.picture || this.getUserAvatar(googleProfile.email);
@@ -500,46 +499,7 @@ class UserService {
     }
   }
 
-  // Sync localStorage counts to Supabase (one-time sync for existing data)
-  async syncLocalStorageCountsToSupabase() {
-    if (!this.currentUser) return
 
-    try {
-      // Get current localStorage data
-      const clients = JSON.parse(localStorage.getItem('clients') || '[]')
-      const products = JSON.parse(localStorage.getItem('products') || '[]')
-      const invoices = JSON.parse(localStorage.getItem('invoices') || '[]')
-      const exportCount = parseInt(localStorage.getItem('invoice_export_count') || '0')
-      const emailShareCount = parseInt(localStorage.getItem('email_share_count') || '0')
-
-      const localCounts = {
-        clients: clients.length,
-        products: products.length,
-        invoices: invoices.length,
-        invoice_exports: exportCount,
-        email_shares: emailShareCount
-      }
-
-      console.log('Syncing localStorage counts to Supabase:', localCounts)
-
-      // Update each resource type in Supabase with the localStorage count
-      for (const [resourceType, count] of Object.entries(localCounts)) {
-        await supabase
-          .from('resource_usage')
-          .update({
-            current_count: count,
-            updated_at: new Date().toISOString()
-          })
-          .eq('user_id', this.currentUser.id)
-          .eq('resource_type', resourceType)
-      }
-
-      console.log('Successfully synced localStorage counts to Supabase')
-    } catch (error) {
-      secureLogger.error('Error syncing localStorage counts to Supabase:', error)
-      throw error
-    }
-  }
 
   // Update resource usage limits when subscription changes
   async updateResourceUsageLimits(subscriptionTier) {
@@ -784,9 +744,6 @@ class UserService {
     
     // Store avatar URL
     localStorage.setItem(storedKey, newAvatar);
-    
-    // Verify storage
-    const confirmedStored = localStorage.getItem(storedKey);
     
     return newAvatar;
   }

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import LottieMoney from "../LotiIcon/LottieMoney";
 import LottieProduct from "../LotiIcon/LottieProduct";
 import LottieInvoice from "../LotiIcon/LottieInvoice";
@@ -12,7 +12,7 @@ import {
 } from "../../store/invoiceSlice";
 import NumberFormat from "react-number-format";
 import useSubscriptionLimits from "../../hooks/useSubscriptionLimits";
-import subscriptionService from "../../services/subscriptionService";
+
 import userService from "../../services/userService";
 
 function DashboardWidgets() {
@@ -20,14 +20,33 @@ function DashboardWidgets() {
   const products = useSelector(getAllProductSelector) || [];
   const totalBalance = useSelector(getTotalBalance) || 0;
   const allInvoices = useSelector(getAllInvoiceSelector) || [];
-  const { getCurrentPlan, usageCounts } = useSubscriptionLimits();
+  const { getCurrentPlan, usageCounts, loadUsageCounts } = useSubscriptionLimits();
+
   
   const user = userService.getCurrentUser();
   const currentPlan = getCurrentPlan();
   
   // Get current usage counts from Supabase (real-time)
   const exportCount = usageCounts.invoice_exports || 0;
-  const emailShareCount = usageCounts.email_shares || 0;
+  
+  // Refresh usage counts periodically to ensure real-time updates
+  useEffect(() => {
+    const refreshInterval = setInterval(() => {
+      loadUsageCounts();
+    }, 2000); // Refresh every 2 seconds for real-time feel
+    
+    // Also refresh immediately when component mounts
+    loadUsageCounts();
+    
+    return () => clearInterval(refreshInterval);
+  }, [loadUsageCounts]);
+  
+  // Refresh when user changes (login/logout)
+  useEffect(() => {
+    if (user) {
+      loadUsageCounts();
+    }
+  }, [user, loadUsageCounts]);
 
 
 

@@ -80,7 +80,7 @@ class CloudSyncService {
     try {
       const authState = localStorage.getItem('cloudSyncAuth');
       if (authState) {
-        const { accessToken, userId, timestamp } = JSON.parse(authState);
+        const { accessToken, userId } = JSON.parse(authState);
         
         if (accessToken && userId) {
           await this.initialize(accessToken, userId);

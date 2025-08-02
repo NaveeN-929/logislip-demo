@@ -58,7 +58,7 @@ import {
 } from "../../utils/match";
 import PageTitle from "../../components/Common/PageTitle";
 import { uploadToGoogleDriveWithNestedFolder, generateInvoiceFolderPath } from "../../utils/googleDrive";
-import domtoimage from "dom-to-image";
+import domtoimage from "dom-to-image-more";
 import { jsPDF } from "jspdf";
 import { numberToWords } from "../../utils/numberToWords";
 
@@ -273,73 +273,83 @@ function InvoiceDetailScreen(props) {
     }
   };
 
-  const handleExport = useCallback(() => {
-    // Check subscription limits before exporting
-    if (!canExportFormat('pdf')) {
-      setShowExportLimitModal(true);
-      return;
-    }
-
-    // Check if user can use the current template for export
-    if (!canUseTemplate(selectedTemplate)) {
-      toast.error(`You cannot export with ${selectedTemplate.charAt(0).toUpperCase() + selectedTemplate.slice(1)} template. Please upgrade your plan or switch to Default template.`, {
-        position: "bottom-center",
-        autoClose: 4000,
-      });
-      return;
-    }
-
-    if (showNavbar) {
-      toggleNavbar();
-    }
-    setEscapeOverflow(true);
-    setIsViewMode(true);
-    setIsExporting(true);
-    
-    // Set print orientation based on template
-    const styleId = 'dynamic-print-style';
-    let existingStyle = document.getElementById(styleId);
-    if (existingStyle) {
-      existingStyle.remove();
-    }
-    
-    const getPrintStyle = (template) => {
-      switch(template) {
-        case 'modern':
-          return '@page { size: A4 portrait; margin: 20mm; }';
-        case 'formal':
-          return '@page { size: A4 portrait; margin: 15mm; }';
-        case 'default':
-        default:
-          return '@page { size: A4 landscape; margin: 15mm; }';
+  const handleExport = useCallback(async () => {
+    try {
+      // Check subscription limits before exporting (async)
+      const canExport = await canExportFormat('pdf');
+      if (!canExport) {
+        setShowExportLimitModal(true);
+        return;
       }
-    };
-    
-    const style = document.createElement('style');
-    style.id = styleId;
-    style.textContent = getPrintStyle(selectedTemplate);
-    document.head.appendChild(style);
-    
-    // Trigger print dialog
+
+      // Check if user can use the current template for export
+      if (!canUseTemplate(selectedTemplate)) {
+        toast.error(`You cannot export with ${selectedTemplate.charAt(0).toUpperCase() + selectedTemplate.slice(1)} template. Please upgrade your plan or switch to Default template.`, {
+          position: "bottom-center",
+          autoClose: 4000,
+        });
+        return;
+      }
+
+      if (showNavbar) {
+        toggleNavbar();
+      }
+      setEscapeOverflow(true);
+      setIsViewMode(true);
+      setIsExporting(true);
+      
+      // Set print orientation based on template
+      const styleId = 'dynamic-print-style';
+      let existingStyle = document.getElementById(styleId);
+      if (existingStyle) {
+        existingStyle.remove();
+      }
+      
+      const getPrintStyle = (template) => {
+        switch(template) {
+          case 'modern':
+            return '@page { size: A4 portrait; margin: 20mm; }';
+          case 'formal':
+            return '@page { size: A4 portrait; margin: 15mm; }';
+          case 'default':
+          default:
+            return '@page { size: A4 landscape; margin: 15mm; }';
+        }
+      };
+      
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = getPrintStyle(selectedTemplate);
+      document.head.appendChild(style);
+      
+      // Track export immediately after limit check passes
+      // This ensures we count the export attempt, not just successful prints
+      await trackAction('invoice_exports', { 
+        invoiceId: invoiceForm?.id || params.id,
+        invoiceNo: invoiceForm?.invoiceNo,
+        format: 'pdf',
+        template: selectedTemplate
+      });
+      
+      // Trigger print dialog
       setTimeout(() => {
         handlePrint();
         
-        // Track export usage after successful print
-        trackAction('invoice_exports', { 
-          invoiceId: invoiceForm?.id || params.id,
-          invoiceNo: invoiceForm?.invoiceNo,
-          format: 'pdf',
-          template: selectedTemplate
-        });
-        
-      // Clean up the style after printing
-      setTimeout(() => {
-        const tempStyle = document.getElementById(styleId);
-        if (tempStyle) {
-          tempStyle.remove();
-        }
-      }, 1000);
-    }, 100);
+        // Clean up the style after printing
+        setTimeout(() => {
+          const tempStyle = document.getElementById(styleId);
+          if (tempStyle) {
+            tempStyle.remove();
+          }
+        }, 1000);
+      }, 100);
+    } catch (error) {
+      console.error('Error during export:', error);
+      toast.error('An error occurred during export. Please try again.', {
+        position: "bottom-center",
+        autoClose: 3000,
+      });
+    }
   }, [
     setIsExporting,
     setEscapeOverflow,
@@ -729,39 +739,62 @@ function InvoiceDetailScreen(props) {
   }, []);
 
   const saveAs = useCallback(
-    (status) => {
-      // Check subscription limits before saving invoice (only for new invoices)
-      if (params.id === "new" && !canCreateResource('invoices')) {
-        console.log('FREE PLAN: Invoice creation blocked - limit reached');
-        setShowInvoiceLimitModal(true);
-        return;
+    async (status) => {
+      try {
+        // Check subscription limits before saving invoice (only for new invoices)
+        if (params.id === "new") {
+          const canCreate = await canCreateResource('invoices');
+          if (!canCreate) {
+            console.log('FREE PLAN: Invoice creation blocked - limit reached');
+            setShowInvoiceLimitModal(true);
+            return;
+          }
+        }
+
+        // Check template restrictions for Free users
+        const currentPlan = getCurrentPlan();
+        if (currentPlan.id === 'free' && selectedTemplate !== 'default') {
+          console.log('FREE PLAN: Template save blocked - only default template allowed');
+          setShowTemplateSaveLimitModal(true);
+          return;
+        }
+
+        console.log('FREE PLAN: Invoice save allowed');
+
+        setStatusData({
+          statusIndex: status === "Draft" ? "1" : status === "Unpaid" ? "2" : "3",
+          statusName: status,
+        });
+        dispatch(setConfirmModalOpen(true));
+      } catch (error) {
+        console.error('Error checking invoice save permissions:', error);
+        // Show error toast or modal
+        toast.error('Unable to save invoice. Please try again.', {
+          position: "bottom-center",
+          autoClose: 3000,
+        });
       }
-
-      // Check template restrictions for Free users
-      const currentPlan = getCurrentPlan();
-      if (currentPlan.id === 'free' && selectedTemplate !== 'default') {
-        console.log('FREE PLAN: Template save blocked - only default template allowed');
-        setShowTemplateSaveLimitModal(true);
-        return;
-      }
-
-      console.log('FREE PLAN: Invoice save allowed');
-
-      setStatusData({
-        statusIndex: status === "Draft" ? "1" : status === "Unpaid" ? "2" : "3",
-        statusName: status,
-      });
-      dispatch(setConfirmModalOpen(true));
     },
     [dispatch, params.id, canCreateResource, getCurrentPlan, selectedTemplate]
   );
 
   // Handler for when disabled save buttons are clicked - show appropriate modal
-  const handleDisabledSaveClick = useCallback(() => {
-    if (params.id === "new" && !canCreateResource('invoices')) {
-      setShowInvoiceLimitModal(true);
-    } else if (getCurrentPlan().id === 'free' && selectedTemplate !== 'default') {
-      setShowTemplateSaveLimitModal(true);
+  const handleDisabledSaveClick = useCallback(async () => {
+    try {
+      if (params.id === "new") {
+        const canCreate = await canCreateResource('invoices');
+        if (!canCreate) {
+          setShowInvoiceLimitModal(true);
+          return;
+        }
+      }
+      
+      if (getCurrentPlan().id === 'free' && selectedTemplate !== 'default') {
+        setShowTemplateSaveLimitModal(true);
+      }
+    } catch (error) {
+      console.error('Error checking save permissions:', error);
+      setShowInvoiceLimitModal(true); // Show limit modal as fallback
     }
   }, [params.id, canCreateResource, getCurrentPlan, selectedTemplate]);
 
@@ -776,16 +809,17 @@ function InvoiceDetailScreen(props) {
       return;
     }
 
-    if (!canExportFormat('drive')) {
+    const canExport = await canExportFormat('drive');
+    if (!canExport) {
       setShowExportLimitModal(true);
       return;
     }
 
     // Check if user is authenticated
-      if (!googleAuth.token) {
+    if (!googleAuth.token) {
       toast.error("Please sign in to Google to upload invoice PDF to Drive");
-        return;
-      }
+      return;
+    }
 
     // Generate automatic folder path based on creation date
     const automaticFolderPath = generateInvoiceFolderPath(invoiceForm.createdDate);
@@ -940,7 +974,8 @@ function InvoiceDetailScreen(props) {
       }, 5000);
       
     } catch (error) {
-                    // Silent - Google Drive export errors should not expose details
+      // Silent - Google Drive export errors should not expose details
+      console.error('Error in Drive export:', error);
       const errorMessage = `Upload failed: ${error.message}`;
       setUploadStatus(`❌ ${errorMessage}`);
       toast.error(`Google Drive upload failed: ${error.message}`);
@@ -2341,24 +2376,26 @@ function InvoiceDetailScreen(props) {
                     size="sm"
                     block={1}
                     secondary={1}
-                    onClick={
-                      (params.id === "new" && !canCreateResource('invoices')) ||
-                      (getCurrentPlan().id === 'free' && selectedTemplate !== 'default')
-                        ? handleDisabledSaveClick 
-                        : () => saveAs("Draft")
-                    }
-                    disabled={
-                      (params.id === "new" && !canCreateResource('invoices')) ||
-                      (getCurrentPlan().id === 'free' && selectedTemplate !== 'default')
-                    }
+                    onClick={async () => {
+                      if (params.id === "new") {
+                        try {
+                          const canCreate = await canCreateResource('invoices');
+                          if (!canCreate || (getCurrentPlan().id === 'free' && selectedTemplate !== 'default')) {
+                            await handleDisabledSaveClick();
+                            return;
+                          }
+                        } catch (error) {
+                          console.error('Error checking permissions:', error);
+                          setShowInvoiceLimitModal(true);
+                          return;
+                        }
+                      }
+                      await saveAs("Draft");
+                    }}
+                    disabled={false}
                   >
                     <CheckCircleIcon className="h-5 w-5 mr-1" /> 
-                    {(params.id === "new" && !canCreateResource('invoices')) ? 
-                      "Upgrade to Save More" : 
-                      (getCurrentPlan().id === 'free' && selectedTemplate !== 'default') ?
-                        "Upgrade for Templates" :
-                        "Save As Draft"
-                    }
+                    "Save As Draft"
                   </Button>
                 </div>
               )}
@@ -2368,24 +2405,26 @@ function InvoiceDetailScreen(props) {
                     size="sm"
                     block={1}
                     danger={1}
-                    onClick={
-                      (params.id === "new" && !canCreateResource('invoices')) ||
-                      (getCurrentPlan().id === 'free' && selectedTemplate !== 'default')
-                        ? handleDisabledSaveClick 
-                        : () => saveAs("Unpaid")
-                    }
-                    disabled={
-                      (params.id === "new" && !canCreateResource('invoices')) ||
-                      (getCurrentPlan().id === 'free' && selectedTemplate !== 'default')
-                    }
+                    onClick={async () => {
+                      if (params.id === "new") {
+                        try {
+                          const canCreate = await canCreateResource('invoices');
+                          if (!canCreate || (getCurrentPlan().id === 'free' && selectedTemplate !== 'default')) {
+                            await handleDisabledSaveClick();
+                            return;
+                          }
+                        } catch (error) {
+                          console.error('Error checking permissions:', error);
+                          setShowInvoiceLimitModal(true);
+                          return;
+                        }
+                      }
+                      await saveAs("Unpaid");
+                    }}
+                    disabled={false}
                   >
                     <DollarIcon className="h-5 w-5 mr-1" />{" "}
-                    {(params.id === "new" && !canCreateResource('invoices')) ? 
-                      "Upgrade to Save More" : 
-                      (getCurrentPlan().id === 'free' && selectedTemplate !== 'default') ?
-                        "Upgrade for Templates" :
-                        `${params.id === "new" ? "Save" : "Update"} As Unpaid`
-                    }
+                    {`${params.id === "new" ? "Save" : "Update"} As Unpaid`}
                   </Button>
                 </div>
               )}
@@ -2394,24 +2433,26 @@ function InvoiceDetailScreen(props) {
                   size="sm"
                   block={1}
                   success={1}
-                  onClick={
-                    (params.id === "new" && !canCreateResource('invoices')) ||
-                    (getCurrentPlan().id === 'free' && selectedTemplate !== 'default')
-                      ? handleDisabledSaveClick 
-                      : () => saveAs("Paid")
-                  }
-                  disabled={
-                    (params.id === "new" && !canCreateResource('invoices')) ||
-                    (getCurrentPlan().id === 'free' && selectedTemplate !== 'default')
-                  }
+                  onClick={async () => {
+                    if (params.id === "new") {
+                      try {
+                        const canCreate = await canCreateResource('invoices');
+                        if (!canCreate || (getCurrentPlan().id === 'free' && selectedTemplate !== 'default')) {
+                          await handleDisabledSaveClick();
+                          return;
+                        }
+                      } catch (error) {
+                        console.error('Error checking permissions:', error);
+                        setShowInvoiceLimitModal(true);
+                        return;
+                      }
+                    }
+                    await saveAs("Paid");
+                  }}
+                  disabled={false}
                 >
                   <SecurityIcon className="h-5 w-5 mr-1" />{" "}
-                  {(params.id === "new" && !canCreateResource('invoices')) ? 
-                    "Upgrade to Save More" : 
-                    (getCurrentPlan().id === 'free' && selectedTemplate !== 'default') ?
-                      "Upgrade for Templates" :
-                      `${params.id === "new" ? "Save" : "Update"} As Paid`
-                  }
+                  {`${params.id === "new" ? "Save" : "Update"} As Paid`}
                 </Button>
               </div>
             </div>
@@ -2496,7 +2537,7 @@ function InvoiceDetailScreen(props) {
         onClose={() => setShowExportLimitModal(false)}
         onUpgrade={() => {
           setShowExportLimitModal(false);
-          window.location.href = '/subscription';
+          navigate('/subscription');
         }}
         resourceType="invoice_exports"
         message="You've reached your invoice export limit. Upgrade to export more invoices and grow your business!"
@@ -2507,7 +2548,7 @@ function InvoiceDetailScreen(props) {
         onClose={() => setShowDriveExportLimitModal(false)}
         onUpgrade={() => {
           setShowDriveExportLimitModal(false);
-          window.location.href = '/subscription';
+          navigate('/subscription');
         }}
         resourceType="invoice_exports"
         message="Drive export is not available on your current plan. Upgrade to Pro or Business to export invoices directly to Google Drive!"
@@ -2518,7 +2559,7 @@ function InvoiceDetailScreen(props) {
         onClose={() => setShowInvoiceLimitModal(false)}
         onUpgrade={() => {
           setShowInvoiceLimitModal(false);
-          window.location.href = '/subscription';
+          navigate('/subscription');
         }}
         resourceType="invoices"
         message="You've reached your invoice creation limit. Upgrade to create more invoices and grow your business!"
@@ -2529,7 +2570,7 @@ function InvoiceDetailScreen(props) {
         onClose={() => setShowTemplateSaveLimitModal(false)}
         onUpgrade={() => {
           setShowTemplateSaveLimitModal(false);
-          window.location.href = '/subscription';
+          navigate('/subscription');
         }}
         resourceType="templates"
         message="You can only save invoices with the Default template on the Free plan. Upgrade to save with all templates!"

@@ -103,11 +103,21 @@ export const invoiceSlice = createSlice({
     },
 
     setNewInvoices: (state, action) => {
-      // Check subscription limits before adding invoice (async check will be handled by component)
       const user = userService.getCurrentUser();
       if (!user) {
         console.log('INVOICE CREATION BLOCKED: No user found');
         return;
+      }
+      
+      // Double-check subscription limits in Redux as a safeguard
+      const plans = subscriptionService.getSubscriptionPlans();
+      const currentPlan = plans[user.subscription_tier] || plans.free;
+      const invoiceLimit = currentPlan.limitations.invoicesSaveExport;
+      
+      // If user has a limit, check current count
+      if (invoiceLimit !== -1 && state.data.length >= invoiceLimit) {
+        console.log(`INVOICE CREATION BLOCKED: Limit reached - current: ${state.data.length}, limit: ${invoiceLimit}`);
+        return; // Block creation if limit reached
       }
       
       const { payload } = action;

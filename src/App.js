@@ -150,6 +150,7 @@ const App = () => {
             onClose={() => setShowUsageLimitModal(false)}
             onUpgrade={() => {
               setShowUsageLimitModal(false);
+              // Use window.location for App level navigation since it's outside Router context
               window.location.href = '/subscription';
             }}
           />

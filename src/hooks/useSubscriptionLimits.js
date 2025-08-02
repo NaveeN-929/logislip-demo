@@ -55,9 +55,14 @@ const useSubscriptionLimits = () => {
   }, [])
 
   // Check if user can export with specific format (gets fresh count every time)
-  const canExportFormat = useCallback((format) => {
-    const canExport = subscriptionService.canExportFormat(format)
-    return canExport
+  const canExportFormat = useCallback(async (format) => {
+    try {
+      const canExport = await subscriptionService.canExportFormat(format)
+      return canExport
+    } catch (error) {
+      console.error('Error checking export format permissions:', error)
+      return false
+    }
   }, [])
 
   // Check if user can use specific template
@@ -112,12 +117,17 @@ const useSubscriptionLimits = () => {
         await subscriptionService.incrementUsageCount(actionType)
       }
       
-      // Update local state with fresh counts
+      // Update local state with fresh counts immediately
       const newCounts = await getRealTimeUsageCounts()
       setUsageCounts(newCounts)
+      
+      // Force a small delay to ensure state propagation
+      await new Promise(resolve => setTimeout(resolve, 100))
 
       // Track in service for analytics
       await subscriptionService.trackUsage(actionType, resourceData)
+      
+      console.log(`✅ Tracked ${actionType}, updated counts:`, newCounts)
       
       return true
     } catch (error) {

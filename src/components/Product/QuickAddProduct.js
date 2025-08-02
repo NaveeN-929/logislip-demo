@@ -2,6 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect } from "react";
 import Skeleton from "react-loading-skeleton";
 import { toast } from "react-toastify";
 import { useDispatch, useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import { nanoid } from "nanoid";
 import Button from "../Button/Button";
 import ImageUpload from "../Common/ImageUpload";
@@ -32,9 +33,10 @@ const emptyForm = {
 
 function QuickAddProduct() {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const productNewForm = useSelector(getProductNewForm);
   const { initLoading: isInitLoading } = useAppContext();
-  const { canCreateResource, trackAction } = useSubscriptionLimits();
+  const { canCreateResource } = useSubscriptionLimits();
 
   const [isTouched, setIsTouched] = useState(false);
   const [productForm, setProductForm] = useState(emptyForm);
@@ -126,7 +128,7 @@ function QuickAddProduct() {
   const handleUpgrade = () => {
     setShowUsageLimitModal(false);
     // Navigate to subscription page
-    window.location.href = '/subscription';
+    navigate('/subscription');
   };
 
   const imageUploadClasses = useMemo(() => {

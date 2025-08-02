@@ -42,11 +42,6 @@ const ProfileScreen = () => {
     }
   }
 
-  const formatDate = (timestamp) => {
-    if (!timestamp) return 'Never';
-    return new Date(timestamp).toLocaleString();
-  }
-
   const formatTimeAgo = (timestamp) => {
     if (!timestamp) return 'Never';
     const diff = Date.now() - timestamp;
@@ -110,7 +105,6 @@ const ProfileScreen = () => {
   }
 
   const subscription = subscriptionService.getCurrentSubscription()
-  const usageStats = subscriptionService.getUsageStats()
 
   if (loading) {
     return (
@@ -143,20 +137,64 @@ const ProfileScreen = () => {
         {/* User Info Card */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="bg-gradient-to-r from-blue-500 to-purple-600 px-6 py-8">
-            <div className="flex items-center space-x-4">
-              <img
-                src={user?.avatar_url || 'https://via.placeholder.com/64'}
-                alt={user?.name || 'User'}
-                className="w-16 h-16 rounded-full border-4 border-white shadow-lg"
-              />
-              <div className="text-white">
-                <h1 className="text-2xl font-bold">{user?.name || 'User'}</h1>
-                <p className="text-blue-100">{user?.email}</p>
-                <p className="text-sm text-blue-200">
-                  Member since {new Date(user?.created_at).toLocaleDateString()}
-                </p>
+            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+              {/* Left side - User Profile */}
+              <div className="flex items-center space-x-4">
+                <img
+                  src={user?.avatar_url || 'https://via.placeholder.com/64'}
+                  alt={user?.name || 'User'}
+                  className="w-16 h-16 rounded-full border-4 border-white shadow-lg"
+                />
+                <div className="text-white">
+                  <h1 className="text-2xl font-bold">{user?.name || 'User'}</h1>
+                  <p className="text-blue-100">{user?.email}</p>
+                  <p className="text-sm text-blue-200">
+                    Member since {new Date(user?.created_at).toLocaleDateString()}
+                  </p>
+                </div>
               </div>
-              <div className="ml-auto">
+
+              {/* Right side - Subscription & Avatar Actions */}
+              <div className="flex flex-col lg:items-end space-y-4">
+                {/* Subscription Info */}
+                <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 w-full lg:min-w-[280px]">
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="font-semibold text-white">Subscription</h3>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      subscription?.plan?.id === 'free' 
+                        ? 'bg-white/20 text-white'
+                        : 'bg-white/20 text-white'
+                    }`}>
+                      {subscription?.plan?.name || 'Free'}
+                    </span>
+                  </div>
+                  
+                  {subscription?.plan?.id !== 'free' && subscription?.endDate && (
+                    <p className="text-sm text-blue-100 mb-3">
+                      Renews on {new Date(subscription.endDate).toLocaleDateString()}
+                    </p>
+                  )}
+
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => navigate('/subscription')}
+                      className="w-full bg-white text-blue-600 py-2 px-4 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors"
+                    >
+                      {subscription?.plan?.id === 'free' ? 'Upgrade Plan' : 'Manage Subscription'}
+                    </button>
+                    
+                    {subscription?.plan?.id !== 'free' && (
+                      <button
+                        onClick={handleCancelSubscription}
+                        className="w-full bg-red-500/20 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-red-500/30 transition-colors"
+                      >
+                        Cancel Subscription
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Avatar Actions */}
                 <button
                   onClick={handleRegenerateAvatar}
                   disabled={regeneratingAvatar}
@@ -168,100 +206,6 @@ const ProfileScreen = () => {
                   </svg>
                   <span>{regeneratingAvatar ? 'Generating...' : 'New Avatar'}</span>
                 </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="p-6">
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* Account Stats */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="font-semibold text-gray-900 mb-3">Account Statistics</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Total Invoices:</span>
-                    <span className="font-medium">{analytics?.invoiceCount || 0}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Total Clients:</span>
-                    <span className="font-medium">{analytics?.clientCount || 0}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Total Products:</span>
-                    <span className="font-medium">{analytics?.productCount || 0}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Last Login:</span>
-                    <span className="font-medium">{formatDate(user?.last_login)}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Usage Stats */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="font-semibold text-gray-900 mb-3">Usage This Month</h3>
-                <div className="space-y-3">
-                  <div>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-gray-600">Invoices</span>
-                      <span className="font-medium">
-                        {usageStats?.current || 0} / {usageStats?.isUnlimited ? '∞' : usageStats?.limit || 0}
-                      </span>
-                    </div>
-                    {!usageStats?.isUnlimited && (
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className={`h-2 rounded-full transition-all ${
-                            usageStats?.percentage > 80 ? 'bg-red-500' : 
-                            usageStats?.percentage > 60 ? 'bg-yellow-500' : 'bg-green-500'
-                          }`}
-                          style={{ width: `${usageStats?.percentage || 0}%` }}
-                        ></div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {usageStats?.remaining > 0 ? `${usageStats.remaining} invoices remaining` : 'Limit reached'}
-                  </div>
-                </div>
-              </div>
-
-              {/* Subscription Info */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <div className="flex justify-between items-center mb-3">
-                  <h3 className="font-semibold text-gray-900">Subscription</h3>
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    subscription?.plan?.id === 'free' 
-                      ? 'bg-gray-100 text-gray-700'
-                      : 'bg-blue-100 text-blue-700'
-                  }`}>
-                    {subscription?.plan?.name || 'Free'}
-                  </span>
-                </div>
-                
-                {subscription?.plan?.id !== 'free' && subscription?.endDate && (
-                  <p className="text-sm text-gray-600 mb-3">
-                    Renews on {new Date(subscription.endDate).toLocaleDateString()}
-                  </p>
-                )}
-
-                <div className="space-y-2">
-                  <button
-                    onClick={() => navigate('/subscription')}
-                    className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-                  >
-                    {subscription?.plan?.id === 'free' ? 'Upgrade Plan' : 'Manage Subscription'}
-                  </button>
-                  
-                  {subscription?.plan?.id !== 'free' && (
-                    <button
-                      onClick={handleCancelSubscription}
-                      className="w-full bg-red-100 text-red-700 py-2 px-4 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors"
-                    >
-                      Cancel Subscription
-                    </button>
-                  )}
-                </div>
               </div>
             </div>
           </div>
