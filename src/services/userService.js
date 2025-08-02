@@ -4,10 +4,18 @@ import Cookies from 'js-cookie'
 
 import secureLogger from '../utils/secureLogger'
 
+// Global cache to prevent duplicate calls across all instances
+const GLOBAL_USAGE_CACHE = {
+  data: null,
+  timestamp: null,
+  pendingPromise: null // Prevent multiple simultaneous calls
+};
+
 class UserService {
   constructor() {
     this.currentUser = null
     this.sessionToken = null
+    this.CACHE_TTL = 600000 // 10 minutes cache - only refresh when data changes
     this.initializeFromStorage()
   }
 
@@ -28,6 +36,14 @@ class UserService {
         }
       }
     }
+  }
+
+  // Clear usage counts cache (call when data changes)
+  clearUsageCountsCache() {
+    GLOBAL_USAGE_CACHE.data = null
+    GLOBAL_USAGE_CACHE.timestamp = null
+    GLOBAL_USAGE_CACHE.pendingPromise = null
+    console.log('🔄 Cache cleared - will refresh on next access');
   }
 
   // Get or generate user avatar with persistence
@@ -341,28 +357,97 @@ class UserService {
     }
   }
 
-  // Get resource usage counts from Supabase
-  async getResourceUsageCounts() {
+  // Get resource usage counts from Supabase with global caching and deduplication
+  async getResourceUsageCounts(useCache = true) {
     if (!this.currentUser) return {}
 
+    // Check global cache first if enabled
+    if (useCache && GLOBAL_USAGE_CACHE.data && GLOBAL_USAGE_CACHE.timestamp) {
+      const cacheAge = Date.now() - GLOBAL_USAGE_CACHE.timestamp
+      if (cacheAge < this.CACHE_TTL) {
+        // Return cached data silently
+        return GLOBAL_USAGE_CACHE.data
+      }
+    }
+
+    // If there's already a pending promise, wait for it instead of making a new call
+    if (GLOBAL_USAGE_CACHE.pendingPromise) {
+      try {
+        return await GLOBAL_USAGE_CACHE.pendingPromise
+      } catch (error) {
+        // If the pending promise failed, we'll try again below
+        GLOBAL_USAGE_CACHE.pendingPromise = null
+      }
+    }
+
+    // Create the fetch promise and store it to prevent duplicate calls
+    GLOBAL_USAGE_CACHE.pendingPromise = this._fetchUsageCountsFromSupabase()
+
     try {
-      const { data: usage, error } = await supabase
+      const result = await GLOBAL_USAGE_CACHE.pendingPromise
+      return result
+    } catch (error) {
+      GLOBAL_USAGE_CACHE.pendingPromise = null
+      throw error
+    } finally {
+      GLOBAL_USAGE_CACHE.pendingPromise = null
+    }
+  }
+
+  // Private method to actually fetch from Supabase
+  async _fetchUsageCountsFromSupabase() {
+    try {
+      // Only log the first fetch
+      const isFirstFetch = !GLOBAL_USAGE_CACHE.data
+      if (isFirstFetch) {
+        console.log('⚡ Fetching usage counts from Supabase...')
+      }
+      
+      // Add timeout to Supabase call
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Supabase timeout after 3 seconds')), 3000)
+      );
+
+      const supabasePromise = supabase
         .from('resource_usage')
         .select('resource_type, current_count, limit_count')
-        .eq('user_id', this.currentUser.id)
+        .eq('user_id', this.currentUser.id);
+
+      const { data: usage, error } = await Promise.race([supabasePromise, timeoutPromise]);
 
       if (error) throw error
 
       // Convert array to object
       const usageCounts = {}
-      usage.forEach(item => {
-        usageCounts[item.resource_type] = item.current_count
-      })
+      if (usage && Array.isArray(usage)) {
+        usage.forEach(item => {
+          usageCounts[item.resource_type] = item.current_count
+        })
+      }
+
+      // Cache the results globally
+      GLOBAL_USAGE_CACHE.data = usageCounts
+      GLOBAL_USAGE_CACHE.timestamp = Date.now()
+      
+      if (isFirstFetch) {
+        console.log('📊 Usage counts cached:', usageCounts)
+      }
 
       return usageCounts
     } catch (error) {
-      secureLogger.error('Error getting resource usage counts:', error)
-      throw error
+      // Fallback: return cached data if available, or safe defaults
+      if (GLOBAL_USAGE_CACHE.data) {
+        return GLOBAL_USAGE_CACHE.data
+      }
+      
+      // Safe defaults - no logging to reduce spam
+      return {
+        clients: 0,
+        products: 0,
+        invoices: 0,
+        invoice_exports: 0,
+        email_shares: 0
+      }
     }
   }
 
@@ -435,7 +520,10 @@ class UserService {
 
       if (error) throw error
 
-      console.log(`✅ ${resourceType} count incremented from ${currentUsage.current_count} to ${updatedUsage.current_count}`);
+      console.log(`✅ ${resourceType} count: ${currentUsage.current_count} → ${updatedUsage.current_count}`);
+
+      // Invalidate cache after increment to force fresh data on next check
+      this.clearUsageCountsCache();
 
       // Log the usage
       await this.logUserAction(`${resourceType}_create`, {

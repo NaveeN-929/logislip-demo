@@ -58,7 +58,7 @@ import {
 } from "../../utils/match";
 import PageTitle from "../../components/Common/PageTitle";
 import { uploadToGoogleDriveWithNestedFolder, generateInvoiceFolderPath } from "../../utils/googleDrive";
-import domtoimage from "dom-to-image-more";
+import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import { numberToWords } from "../../utils/numberToWords";
 
@@ -859,7 +859,12 @@ function InvoiceDetailScreen(props) {
     }
 
     try {
-      setUploadStatus("Preparing invoice image...");
+      setUploadStatus("Preparing layout and fonts...");
+      
+      // Wait for fonts to be fully loaded
+      if (document.fonts && document.fonts.ready) {
+        await document.fonts.ready;
+      }
       
       // Set export mode exactly like the working project
       if (showNavbar) {
@@ -869,10 +874,40 @@ function InvoiceDetailScreen(props) {
       setIsViewMode(true);
       setIsExporting(true);
       
+      // Add a small delay to ensure all styles are applied
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       setUploadStatus("Capturing invoice image...");
       
-      // Use dom-to-image exactly like the working project
-      const dataUrl = await domtoimage.toJpeg(componentRef.current, { quality: 1 });
+      // Use html2canvas with optimized settings for better rendering
+      const canvas = await html2canvas(componentRef.current, {
+        scale: 2, // High quality
+        useCORS: true, // Allow cross-origin images
+        allowTaint: true, // Allow tainted canvas for external resources
+        backgroundColor: '#ffffff',
+        logging: false,
+        foreignObjectRendering: false, // Disable for better compatibility
+        imageTimeout: 15000, // Longer timeout for external resources
+        removeContainer: true,
+        onclone: function(clonedDoc, element) {
+          // Ensure all elements are visible and properly styled
+          element.style.transform = 'none';
+          element.style.WebkitTransform = 'none';
+          
+          // Force Josefin Sans font loading in the cloned document
+          const style = clonedDoc.createElement('style');
+          style.textContent = `
+            * {
+              font-family: "Josefin Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+            }
+          `;
+          clonedDoc.head.appendChild(style);
+          
+          return element;
+        }
+      });
+      
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
       
       setUploadStatus("Converting image to PDF...");
       

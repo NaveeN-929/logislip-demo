@@ -1,4 +1,4 @@
-import domtoimage from "dom-to-image-more";
+import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 
 /**
@@ -11,10 +11,47 @@ import { jsPDF } from "jspdf";
  */
 export async function generateInvoicePDF(componentRef, selectedTemplate, invoiceForm, onStatusUpdate = () => {}) {
   try {
+    onStatusUpdate("Preparing fonts and capturing...");
+    
+    // Wait for fonts to be fully loaded
+    if (document.fonts && document.fonts.ready) {
+      await document.fonts.ready;
+    }
+    
+    // Add a small delay to ensure all stylesheets are processed
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
     onStatusUpdate("Capturing invoice image...");
     
-    // Capture the invoice component as image
-    const dataUrl = await domtoimage.toJpeg(componentRef.current, { quality: 1 });
+    // Capture using html2canvas with optimized settings for better rendering
+    const canvas = await html2canvas(componentRef.current, {
+      scale: 2, // High quality
+      useCORS: true, // Allow cross-origin images
+      allowTaint: true, // Allow tainted canvas for external resources
+      backgroundColor: '#ffffff',
+      logging: false,
+      foreignObjectRendering: false, // Disable for better compatibility
+      imageTimeout: 15000, // Longer timeout for external resources
+      removeContainer: true,
+      onclone: function(clonedDoc, element) {
+        // Ensure all elements are visible
+        element.style.transform = 'none';
+        element.style.WebkitTransform = 'none';
+        
+        // Force Josefin Sans font loading in the cloned document
+        const style = clonedDoc.createElement('style');
+        style.textContent = `
+          * {
+            font-family: "Josefin Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+          }
+        `;
+        clonedDoc.head.appendChild(style);
+        
+        return element;
+      }
+    });
+    
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
     
     onStatusUpdate("Converting image to PDF...");
     

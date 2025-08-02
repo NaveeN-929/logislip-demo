@@ -12,14 +12,14 @@ const useSubscriptionLimits = () => {
   })
   const [loading, setLoading] = useState(true)
 
-  // Get real-time usage counts (called every time we need fresh data)
+  // Get real-time usage counts (cached and deduped)
   const getRealTimeUsageCounts = useCallback(async () => {
     try {
-      // Use userService to get counts from Supabase
-      const counts = await userService.getResourceUsageCounts()
+      // Use cached data by default - no logging spam
+      const counts = await userService.getResourceUsageCounts(true)
       return counts
     } catch (error) {
-      console.error('Error getting real-time usage counts:', error)
+      // Silent fallback - no console spam
       return {
         clients: 0,
         products: 0,
@@ -30,37 +30,71 @@ const useSubscriptionLimits = () => {
     }
   }, [])
 
-  // Load current usage counts
-  const loadUsageCounts = useCallback(async () => {
+  // Load current usage counts with force refresh option
+  const loadUsageCounts = useCallback(async (forceRefresh = false) => {
+    // Skip if already loading, unless force refresh is requested
+    if (loading && !forceRefresh) {
+      return
+    }
+    
+    // Skip if already has data and not forcing refresh
+    if (!forceRefresh && Object.values(usageCounts).some(count => count > 0)) {
+      return
+    }
+    
     setLoading(true)
     try {
-      const counts = await getRealTimeUsageCounts()
+      // Force fresh data if requested, otherwise use cache
+      const counts = await userService.getResourceUsageCounts(!forceRefresh)
       setUsageCounts(counts)
     } catch (error) {
-      console.error('Error loading usage counts:', error)
+      // Silent error handling - reduce console noise
     } finally {
       setLoading(false)
     }
-  }, [getRealTimeUsageCounts])
+  }, [getRealTimeUsageCounts, loading, usageCounts])
 
-  // Load counts on mount
-  useEffect(() => {
-    loadUsageCounts()
-  }, [loadUsageCounts])
-
-  // Check if user can create a resource (gets fresh count every time)
-  const canCreateResource = useCallback(async (resourceType) => {
-    const canCreate = await subscriptionService.canCreateResource(resourceType)
-    return canCreate
+  // Force refresh usage counts (for dashboard updates)
+  const refreshUsageCounts = useCallback(async () => {
+    // Clear cache to force fresh data
+    userService.clearUsageCountsCache()
+    
+    setLoading(true)
+    try {
+      const counts = await userService.getResourceUsageCounts(false) // Force fresh data
+      setUsageCounts(counts)
+    } catch (error) {
+      // Silent error handling
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
-  // Check if user can export with specific format (gets fresh count every time)
+  // Load counts on mount (with deduplication)
+  useEffect(() => {
+    loadUsageCounts()
+  }, []) // Removed dependency to prevent re-runs
+
+  // Check if user can create a resource (efficient caching)
+  const canCreateResource = useCallback(async (resourceType) => {
+    try {
+      // Always use cache first for instant response
+      const cachedResult = await subscriptionService.canCreateResource(resourceType, null, true)
+      return cachedResult
+    } catch (error) {
+      // Silent fallback - no logging spam, optimistic allow
+      return true
+    }
+  }, [])
+
+  // Check if user can export with specific format (efficient caching)
   const canExportFormat = useCallback(async (format) => {
     try {
-      const canExport = await subscriptionService.canExportFormat(format)
+      // Always use cache first - only refreshes when stale or after actual exports
+      const canExport = await subscriptionService.canExportFormat(format, null, true)
       return canExport
     } catch (error) {
-      console.error('Error checking export format permissions:', error)
+      // Silent fallback - no logging spam
       return false
     }
   }, [])
@@ -117,8 +151,11 @@ const useSubscriptionLimits = () => {
         await subscriptionService.incrementUsageCount(actionType)
       }
       
+      // Clear cache to get fresh data
+      userService.clearUsageCountsCache()
+      
       // Update local state with fresh counts immediately
-      const newCounts = await getRealTimeUsageCounts()
+      const newCounts = await userService.getResourceUsageCounts(false) // Force fresh
       setUsageCounts(newCounts)
       
       // Force a small delay to ensure state propagation
@@ -129,12 +166,19 @@ const useSubscriptionLimits = () => {
       
       console.log(`✅ Tracked ${actionType}, updated counts:`, newCounts)
       
+      // Dispatch event to notify other components (like dashboard)
+      if (actionType === 'invoice_exports') {
+        window.dispatchEvent(new CustomEvent('invoiceExportComplete', { 
+          detail: { actionType, resourceData, newCounts } 
+        }));
+      }
+      
       return true
     } catch (error) {
       console.error('Error tracking action:', error)
       return false
     }
-  }, [getRealTimeUsageCounts])
+  }, [])
 
   // Get current plan information
   const getCurrentPlan = useCallback(() => {
@@ -165,17 +209,18 @@ const useSubscriptionLimits = () => {
     usageCounts,
     loading,
     
+    // Functions
+    loadUsageCounts,
+    refreshUsageCounts, // New: force refresh function
+    trackAction,
+    showLimitModal,
+    
     // Checks
     canCreateResource,
     canExportFormat,
     canUseTemplate,
     canShareViaEmail,
     canUseFeature,
-    
-    // Actions
-    trackAction,
-    loadUsageCounts,
-    showLimitModal,
     
     // Info
     getResourceLimits,

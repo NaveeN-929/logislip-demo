@@ -13,10 +13,14 @@
       content="Web site created using create-react-app"
     />
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    <!-- Preload and load Google Fonts for better PDF export compatibility -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-      href="https://fonts.googleapis.com/css2?family=Josefin+Sans&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;600;700&display=swap"
       rel="stylesheet"
     />
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
     <!-- Google APIs for Gmail -->
     <script src="https://apis.google.com/js/api.js"></script>
     <!--
