@@ -80,7 +80,7 @@ class CloudSyncService {
     try {
       const authState = localStorage.getItem('cloudSyncAuth');
       if (authState) {
-        const { accessToken, userId, timestamp } = JSON.parse(authState);
+        const { accessToken, userId } = JSON.parse(authState);
         
         if (accessToken && userId) {
           await this.initialize(accessToken, userId);
@@ -561,12 +561,18 @@ class CloudSyncService {
     this.eventListeners.delete(callback);
   }
 
-  notifyListeners(event, data) {
+  notifyListeners(event, data = {}) {
     this.eventListeners.forEach(callback => {
       try {
-        callback(event, data);
+        if (typeof callback === 'function') {
+          callback(event, data);
+        }
       } catch (error) {
-        secureLogger.error('Error in sync event listener:', error);
+        secureLogger.error('Error in sync event listener:', {
+          error: error.message || 'Unknown error',
+          event,
+          stack: error.stack
+        });
       }
     });
   }

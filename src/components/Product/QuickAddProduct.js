@@ -2,6 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect } from "react";
 import Skeleton from "react-loading-skeleton";
 import { toast } from "react-toastify";
 import { useDispatch, useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import { nanoid } from "nanoid";
 import Button from "../Button/Button";
 import ImageUpload from "../Common/ImageUpload";
@@ -32,9 +33,10 @@ const emptyForm = {
 
 function QuickAddProduct() {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const productNewForm = useSelector(getProductNewForm);
   const { initLoading: isInitLoading } = useAppContext();
-  const { canCreateResource, trackAction } = useSubscriptionLimits();
+  const { canCreateResource } = useSubscriptionLimits();
 
   const [isTouched, setIsTouched] = useState(false);
   const [productForm, setProductForm] = useState(emptyForm);
@@ -66,7 +68,7 @@ function QuickAddProduct() {
     [dispatch]
   );
 
-  const submitHandler = useCallback(() => {
+  const submitHandler = useCallback(async () => {
     setIsTouched(true);
 
     const isValid = Object.keys(validForm).every((key) => validForm[key]);
@@ -79,41 +81,44 @@ function QuickAddProduct() {
       return;
     }
 
-    // Show current usage before checking limits
-    const currentProducts = JSON.parse(localStorage.getItem('products') || '[]');
-    console.log(`FREE PLAN DEBUG: Current products: ${currentProducts.length}, attempting to add product #${currentProducts.length + 1}`);
+    try {
+      // Check subscription limits before creating product (now async)
+      const canCreate = await canCreateResource('products');
 
-    // Check subscription limits before creating product
-    if (!canCreateResource('products')) {
-      console.log('FREE PLAN: Product creation blocked - limit reached');
-      toast.error("You've reached your product limit! Upgrade to Pro to add more products.", {
+      if (!canCreate) {
+        console.log('FREE PLAN: Product creation blocked - limit reached');
+        toast.error("You've reached your product limit! Upgrade to Pro to add more products.", {
+          position: "bottom-center",
+          autoClose: 3000,
+        });
+        setShowUsageLimitModal(true);
+        return;
+      }
+
+      console.log('FREE PLAN: Product creation allowed - adding product');
+
+      toast.success("Product added successfully!", {
+        position: "bottom-center",
+        autoClose: 2000,
+      });
+
+      const newProductId = nanoid();
+      dispatch(addNewProduct({ ...productForm, id: newProductId }));
+      
+      setIsTouched(false);
+      
+      // Refresh page to trigger sync
+      setTimeout(() => {
+        window.location.reload();
+      }, 2500);
+    } catch (error) {
+      console.error('Error checking subscription limits:', error);
+      toast.error("Error checking subscription limits. Please try again.", {
         position: "bottom-center",
         autoClose: 3000,
       });
-      setShowUsageLimitModal(true);
-      return;
     }
-
-    console.log('FREE PLAN: Product creation allowed - adding product');
-
-    toast.success("Product added successfully!", {
-      position: "bottom-center",
-      autoClose: 2000,
-    });
-
-    const newProductId = nanoid();
-    dispatch(addNewProduct({ ...productForm, id: newProductId }));
-    
-    // Track product creation for usage limits (this updates the count)
-    trackAction('products', { id: newProductId, name: productForm.name });
-    
-    setIsTouched(false);
-    
-    // Refresh page to trigger sync
-    setTimeout(() => {
-      window.location.reload();
-    }, 2500);
-  }, [productForm, dispatch, validForm, canCreateResource, trackAction]);
+  }, [productForm, dispatch, validForm, canCreateResource]);
 
   // Handler for when disabled button is clicked - redirect to subscription page
   const handleDisabledClick = useCallback(() => {
@@ -123,7 +128,7 @@ function QuickAddProduct() {
   const handleUpgrade = () => {
     setShowUsageLimitModal(false);
     // Navigate to subscription page
-    window.location.href = '/subscription';
+    navigate('/subscription');
   };
 
   const imageUploadClasses = useMemo(() => {

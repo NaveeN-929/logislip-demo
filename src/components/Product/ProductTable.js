@@ -188,7 +188,7 @@ function ProductTable({ showAdvanceSearch = false }) {
                   <div className={defaultTdContent}>
                     <Menu
                       menuButton={
-                        <MenuButton>
+                        <MenuButton aria-label="Product actions">
                           <div className="bg-gray-50 px-2 rounded-xl">
                             <svg
                               xmlns="http://www.w3.org/2000/svg"
@@ -208,11 +208,19 @@ function ProductTable({ showAdvanceSearch = false }) {
                         </MenuButton>
                       }
                       transition
+                      role="menu"
+                      aria-label="Product actions menu"
                     >
-                      <MenuItem onClick={() => handleEdit(product)}>
+                      <MenuItem 
+                        onClick={() => handleEdit(product)}
+                        role="menuitem"
+                      >
                         Edit
                       </MenuItem>
-                      <MenuItem onClick={() => handleDelete(product)}>
+                      <MenuItem 
+                        onClick={() => handleDelete(product)}
+                        role="menuitem"
+                      >
                         Delete
                       </MenuItem>
                     </Menu>

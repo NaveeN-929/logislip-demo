@@ -3,6 +3,7 @@ import React, { useState, useCallback, useMemo, useEffect } from "react";
 import Skeleton from "react-loading-skeleton";
 import { toast } from "react-toastify";
 import { useDispatch, useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import { nanoid } from "nanoid";
 import Button from "../Button/Button";
 import ImageUpload from "../Common/ImageUpload";
@@ -37,9 +38,10 @@ const emptyForm = {
 
 function QuickAddClient({ editForm }) {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const clientNewForm = useSelector(getClientNewForm);
   const { initLoading: isInitLoading } = useAppContext();
-  const { canCreateResource, trackAction } = useSubscriptionLimits();
+  const { canCreateResource } = useSubscriptionLimits();
 
   const [isTouched, setIsTouched] = useState(false);
   const [clientForm, setClientForm] = useState(emptyForm);
@@ -71,7 +73,7 @@ function QuickAddClient({ editForm }) {
     [dispatch]
   );
 
-  const submitHandler = useCallback(() => {
+  const submitHandler = useCallback(async () => {
     setIsTouched(true);
 
     const isValid = Object.keys(validForm).every((key) => validForm[key]);
@@ -84,41 +86,44 @@ function QuickAddClient({ editForm }) {
       return;
     }
 
-    // Show current usage before checking limits
-    const currentClients = JSON.parse(localStorage.getItem('clients') || '[]');
-    console.log(`FREE PLAN DEBUG: Current clients: ${currentClients.length}, attempting to add client #${currentClients.length + 1}`);
+    try {
+      // Check subscription limits before creating client (now async)
+      const canCreate = await canCreateResource('clients');
 
-    // Check subscription limits before creating client
-    if (!canCreateResource('clients')) {
-      console.log('FREE PLAN: Client creation blocked - limit reached');
-      toast.error("You've reached your client limit! Upgrade to Pro to add more clients.", {
+      if (!canCreate) {
+        console.log('FREE PLAN: Client creation blocked - limit reached');
+        toast.error("You've reached your client limit! Upgrade to Pro to add more clients.", {
+          position: "bottom-center",
+          autoClose: 3000,
+        });
+        setShowUsageLimitModal(true);
+        return;
+      }
+
+      console.log('FREE PLAN: Client creation allowed - adding client');
+      
+      toast.success("Client added successfully!", {
+        position: "bottom-center",
+        autoClose: 2000,
+      });
+
+      const newClientId = nanoid();
+      dispatch(addNewClient({ ...clientForm, id: newClientId }));
+      
+      setIsTouched(false);
+      
+      // Refresh page to trigger sync
+      setTimeout(() => {
+        window.location.reload();
+      }, 2500);
+    } catch (error) {
+      console.error('Error checking subscription limits:', error);
+      toast.error("Error checking subscription limits. Please try again.", {
         position: "bottom-center",
         autoClose: 3000,
       });
-      setShowUsageLimitModal(true);
-      return;
     }
-
-    console.log('FREE PLAN: Client creation allowed - adding client');
-    
-    toast.success("Client added successfully!", {
-      position: "bottom-center",
-      autoClose: 2000,
-    });
-
-    const newClientId = nanoid();
-    dispatch(addNewClient({ ...clientForm, id: newClientId }));
-    
-    // Track client creation for usage limits (this updates the count)
-    trackAction('clients', { id: newClientId, name: clientForm.name });
-    
-    setIsTouched(false);
-    
-    // Refresh page to trigger sync
-    setTimeout(() => {
-      window.location.reload();
-    }, 2500);
-  }, [clientForm, dispatch, validForm, canCreateResource, trackAction]);
+  }, [clientForm, dispatch, validForm, canCreateResource]);
 
   // Handler for when disabled button is clicked - redirect to subscription page
   const handleDisabledClick = useCallback(() => {
@@ -128,7 +133,7 @@ function QuickAddClient({ editForm }) {
   const handleUpgrade = () => {
     setShowUsageLimitModal(false);
     // Navigate to subscription page
-    window.location.href = '/subscription';
+    navigate('/subscription');
   };
 
   const imageUploadClasses = useMemo(() => {

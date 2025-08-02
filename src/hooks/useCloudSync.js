@@ -21,63 +21,64 @@ export const useCloudSync = () => {
   const listenerRef = useRef(null);
 
   // Event listener for sync events
-  const handleSyncEvent = useCallback((event, data) => {
+  const handleSyncEvent = useCallback((event, data = {}) => {
     // Removed debug log for security
     
-    switch (event) {
-      case 'sync_started':
-        setSyncStatus(prev => ({ ...prev, syncInProgress: true }));
-        break;
-      case 'sync_completed':
-        setSyncStatus(prev => ({ ...prev, syncInProgress: false, lastSyncTime: new Date() }));
-        setSyncHistory(prev => [
-          {
-            timestamp: Date.now(),
-            type: data.type,
-            action: data.action,
-            success: data.success,
-          },
-          ...prev.slice(0, 9) // Keep last 10 entries
-        ]);
+    try {
+      switch (event) {
+        case 'sync_started':
+          setSyncStatus(prev => ({ ...prev, syncInProgress: true }));
+          break;
+        case 'sync_completed':
+          setSyncStatus(prev => ({ ...prev, syncInProgress: false, lastSyncTime: new Date() }));
+          setSyncHistory(prev => [
+            {
+              timestamp: Date.now(),
+              type: data.type || 'unknown',
+              action: data.action || 'completed',
+              success: data.success !== false, // Default to true if not specified
+            },
+            ...prev.slice(0, 9) // Keep last 10 entries
+          ]);
 
-        const actionMessages = {
-          upload_initial: 'Initial data uploaded to cloud',
-          upload_local: 'Local changes synced to cloud',
-          download_applied: 'Cloud changes applied locally',
-          no_change: 'Data is already in sync',
-        };
+          const actionMessages = {
+            upload_initial: 'Initial data uploaded to cloud',
+            upload_local: 'Local changes synced to cloud',
+            download_applied: 'Cloud changes applied locally',
+            no_change: 'Data is already in sync',
+          };
 
-        if (data.type === 'manual') {
-          toast.success(`✅ ${actionMessages[data.action] || 'Sync completed'}`);
-        }
-        break;
-      case 'sync_failed':
-        setSyncStatus(prev => ({ ...prev, syncInProgress: false, error: data.error }));
-        setSyncHistory(prev => [
-          {
-            timestamp: Date.now(),
-            type: data.type,
-            action: 'error',
-            success: false,
-            error: data.error,
-          },
-          ...prev.slice(0, 9)
-        ]);
+          if (data.type === 'manual') {
+            toast.success(`✅ ${actionMessages[data.action] || 'Sync completed'}`);
+          }
+          break;
+        case 'sync_failed':
+          setSyncStatus(prev => ({ ...prev, syncInProgress: false, error: data.error }));
+          setSyncHistory(prev => [
+            {
+              timestamp: Date.now(),
+              type: data.type || 'unknown',
+              action: 'error',
+              success: false,
+              error: data.error || 'Unknown error',
+            },
+            ...prev.slice(0, 9)
+          ]);
 
-        if (data.type === 'manual') {
-          toast.error(`❌ Sync failed: ${data.error}`);
-        }
-        break;
-      case 'initialized':
-        setSyncStatus(prev => ({
-          ...prev,
-          isInitialized: data.success,
-          error: data.success ? null : data.error?.message,
-        }));
-        
-        if (data.success) {
-          toast.success('☁️ Cloud sync initialized successfully');
-        } else {
+          if (data.type === 'manual') {
+            toast.error(`❌ Sync failed: ${data.error || 'Unknown error'}`);
+          }
+          break;
+        case 'initialized':
+          setSyncStatus(prev => ({
+            ...prev,
+            isInitialized: data.success,
+            error: data.success ? null : data.error?.message,
+          }));
+          
+          if (data.success) {
+            toast.success('☁️ Cloud sync initialized successfully');
+          } else {
           toast.error(`❌ Failed to initialize cloud sync: ${data.error?.message}`);
         }
         break;
@@ -95,12 +96,25 @@ export const useCloudSync = () => {
         break;
     }
 
-    // Update sync status
+    // Update sync status safely
+    try {
+      const syncStatus = cloudSyncService.getSyncStatus();
+      setSyncStatus(prev => ({
+        ...prev,
+        ...syncStatus,
+      }));
+    } catch (statusError) {
+      console.error('Error getting sync status:', statusError);
+    }
+  } catch (error) {
+    console.error('Error in handleSyncEvent:', error);
+    // Prevent the error from propagating and breaking the sync
     setSyncStatus(prev => ({
       ...prev,
-      ...cloudSyncService.getSyncStatus(),
+      error: 'Error handling sync event'
     }));
-  }, []);
+  }
+}, []);
 
   // Initialize sync service
   const initializeSync = useCallback(async (accessToken, userId) => {
@@ -176,11 +190,16 @@ export const useCloudSync = () => {
     cloudSyncService.addEventListener('initialized', handleSyncEvent);
     cloudSyncService.addEventListener('backup_imported', handleSyncEvent);
 
-    // Initial status update
-    setSyncStatus(prev => ({
-      ...prev,
-      ...cloudSyncService.getSyncStatus(),
-    }));
+    // Initial status update - safely
+    try {
+      const syncStatus = cloudSyncService.getSyncStatus();
+      setSyncStatus(prev => ({
+        ...prev,
+        ...syncStatus,
+      }));
+    } catch (error) {
+      console.error('Error getting initial sync status:', error);
+    }
 
     // Cleanup
     return () => {
@@ -197,10 +216,15 @@ export const useCloudSync = () => {
   // Update sync status periodically
   useEffect(() => {
     const interval = setInterval(() => {
-      setSyncStatus(prev => ({
-        ...prev,
-        ...cloudSyncService.getSyncStatus(),
-      }));
+      try {
+        const syncStatus = cloudSyncService.getSyncStatus();
+        setSyncStatus(prev => ({
+          ...prev,
+          ...syncStatus,
+        }));
+      } catch (error) {
+        console.error('Error getting periodic sync status:', error);
+      }
     }, 10000); // Update every 10 seconds
 
     return () => clearInterval(interval);

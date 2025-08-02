@@ -206,7 +206,7 @@ function InvoiceTable({ showAdvanceSearch = false }) {
                   <div className={defaultTdContent}>
                     <Menu
                       menuButton={
-                        <MenuButton>
+                        <MenuButton aria-label="Invoice actions">
                           <div className="bg-gray-50 px-2 rounded-xl">
                             <svg
                               xmlns="http://www.w3.org/2000/svg"
@@ -226,14 +226,25 @@ function InvoiceTable({ showAdvanceSearch = false }) {
                         </MenuButton>
                       }
                       transition
+                      role="menu"
+                      aria-label="Invoice actions menu"
                     >
-                      <MenuItem onClick={() => handleEdit(invoice)}>
+                      <MenuItem 
+                        onClick={() => handleEdit(invoice)}
+                        role="menuitem"
+                      >
                         Detail
                       </MenuItem>
-                      <MenuItem onClick={() => handleShare(invoice)}>
+                      <MenuItem 
+                        onClick={() => handleShare(invoice)}
+                        role="menuitem"
+                      >
                         Share
                       </MenuItem>
-                      <MenuItem onClick={() => handleDelete(invoice)}>
+                      <MenuItem 
+                        onClick={() => handleDelete(invoice)}
+                        role="menuitem"
+                      >
                         Delete
                       </MenuItem>
                     </Menu>

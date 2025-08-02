@@ -386,24 +386,8 @@ class SubscriptionService {
     if (!user) return {}
 
     try {
-      // Get counts from localStorage using the actual keys used by the app
-      const clients = JSON.parse(localStorage.getItem('clients') || '[]')
-      const products = JSON.parse(localStorage.getItem('products') || '[]')
-      const invoices = JSON.parse(localStorage.getItem('invoices') || '[]')
-      
-      // For exports and email shares, we track these in separate counters
-      const exportCount = parseInt(localStorage.getItem('invoice_export_count') || '0')
-      const emailShareCount = parseInt(localStorage.getItem('email_share_count') || '0')
-
-      const counts = {
-        clients: clients.length,
-        products: products.length,
-        invoices: invoices.length,
-        invoice_exports: exportCount,
-        email_shares: emailShareCount
-      }
-
-      console.log('DEBUG: Current usage counts:', counts)
+      // Use userService to get resource usage counts from Supabase
+      const counts = await userService.getResourceUsageCounts()
       return counts
     } catch (error) {
       console.error('Error getting usage counts:', error)
@@ -418,49 +402,18 @@ class SubscriptionService {
   }
 
   // Increment usage counter for specific action
-  incrementUsageCount(actionType) {
+  async incrementUsageCount(actionType) {
     try {
-      let currentCount = 0;
+      // Use userService to increment resource usage in Supabase
+      const result = await userService.incrementResourceUsage(actionType)
       
-      // Handle different action types with proper localStorage keys
-      switch (actionType) {
-        case 'clients':
-          const clients = JSON.parse(localStorage.getItem('clients') || '[]')
-          currentCount = clients.length
-          console.log(`DEBUG: Client count after creation: ${currentCount}`)
-          break
-        case 'products':
-          const products = JSON.parse(localStorage.getItem('products') || '[]')
-          currentCount = products.length
-          console.log(`DEBUG: Product count after creation: ${currentCount}`)
-          break
-        case 'invoices':
-          const invoices = JSON.parse(localStorage.getItem('invoices') || '[]')
-          currentCount = invoices.length
-          console.log(`DEBUG: Invoice count after creation: ${currentCount}`)
-          break
-        case 'invoice_exports':
-          currentCount = parseInt(localStorage.getItem('invoice_export_count') || '0')
-          localStorage.setItem('invoice_export_count', (currentCount + 1).toString())
-          currentCount = currentCount + 1
-          console.log(`DEBUG: Export count after increment: ${currentCount}`)
-          break
-        case 'email_shares':
-          currentCount = parseInt(localStorage.getItem('email_share_count') || '0')
-          localStorage.setItem('email_share_count', (currentCount + 1).toString())
-          currentCount = currentCount + 1
-          console.log(`DEBUG: Email share count after increment: ${currentCount}`)
-          break
-        default:
-          currentCount = parseInt(localStorage.getItem(`${actionType}_count`) || '0')
-          localStorage.setItem(`${actionType}_count`, (currentCount + 1).toString())
-          currentCount = currentCount + 1
-      }
+      // Track the action for analytics
+      await this.trackUsage(actionType, { 
+        count: result?.current_count || 0,
+        limit: result?.limit_count || 0
+      })
       
-      // Track the action
-      this.trackUsage(actionType, { count: currentCount })
-      
-      return currentCount
+      return result?.current_count || 0
     } catch (error) {
       console.error('Error incrementing usage count:', error)
       return 0
@@ -556,7 +509,7 @@ class SubscriptionService {
   }
 
   // Check if user has reached limit for a specific resource - WITH REAL-TIME CHECKING
-  hasReachedLimit(resourceType, currentCount = null) {
+  async hasReachedLimit(resourceType, currentCount = null) {
     const user = userService.getCurrentUser()
     if (!user) return true
 
@@ -566,27 +519,13 @@ class SubscriptionService {
 
     // Get real-time count if not provided
     if (currentCount === null) {
-      switch (resourceType) {
-        case 'clients':
-          const clients = JSON.parse(localStorage.getItem('clients') || '[]')
-          currentCount = clients.length
-          break
-        case 'products':
-          const products = JSON.parse(localStorage.getItem('products') || '[]')
-          currentCount = products.length
-          break
-        case 'invoices':
-          const invoices = JSON.parse(localStorage.getItem('invoices') || '[]')
-          currentCount = invoices.length
-          break
-        case 'invoice_exports':
-          currentCount = parseInt(localStorage.getItem('invoice_export_count') || '0')
-          break
-        case 'email_shares':
-          currentCount = parseInt(localStorage.getItem('email_share_count') || '0')
-          break
-        default:
-          currentCount = 0
+      try {
+        // Use Supabase for real-time counts
+        const usageCounts = await userService.getResourceUsageCounts()
+        currentCount = usageCounts[resourceType] || 0
+      } catch (error) {
+        console.error('Error getting resource usage count:', error)
+        throw error
       }
     }
 
@@ -616,62 +555,34 @@ class SubscriptionService {
         hasReached = false
     }
 
-    console.log(`DEBUG: Limit check for ${resourceType}:`, {
-      currentCount,
-      limit: limitations[resourceType] || limitations.invoicesSaveExport,
-      hasReached,
-      planTier: currentPlan.id
-    })
+    // Debug removed to reduce console noise
 
     return hasReached
   }
 
   // Check if user can create a new resource (before creation) - ENHANCED
-  canCreateResource(resourceType, currentCount = null) {
+  async canCreateResource(resourceType, currentCount = null) {
     const user = userService.getCurrentUser()
     if (!user) {
-      console.log('DEBUG: No user found, blocking resource creation')
       return false
     }
 
-    // Get real-time count if not provided
-    if (currentCount === null) {
-      switch (resourceType) {
-        case 'clients':
-          const clients = JSON.parse(localStorage.getItem('clients') || '[]')
-          currentCount = clients.length
-          break
-        case 'products':
-          const products = JSON.parse(localStorage.getItem('products') || '[]')
-          currentCount = products.length
-          break
-        case 'invoices':
-          const invoices = JSON.parse(localStorage.getItem('invoices') || '[]')
-          currentCount = invoices.length
-          break
-        case 'invoice_exports':
-          currentCount = parseInt(localStorage.getItem('invoice_export_count') || '0')
-          break
-        case 'email_shares':
-          currentCount = parseInt(localStorage.getItem('email_share_count') || '0')
-          break
-        default:
-          currentCount = 0
-      }
+    try {
+      // Use the updated hasReachedLimit method
+      const limitReached = await this.hasReachedLimit(resourceType, currentCount)
+      const canCreate = !limitReached
+      
+      // Debug removed to reduce console noise
+      
+      return canCreate
+    } catch (error) {
+      console.error('Error checking resource creation limit:', error)
+      return false
     }
-
-    const canCreate = !this.hasReachedLimit(resourceType, currentCount)
-    console.log(`DEBUG: Can create ${resourceType}:`, {
-      currentCount,
-      canCreate,
-      userTier: user.subscription_tier
-    })
-    
-    return canCreate
   }
 
   // Check if user can export with specific format
-  canExportFormat(format, currentExportCount = null) {
+  async canExportFormat(format, currentExportCount = null) {
     const user = userService.getCurrentUser()
     if (!user) return false
 
@@ -682,33 +593,24 @@ class SubscriptionService {
     // Check if format is allowed
     const formatAllowed = limitations.exportFormats.includes(format.toLowerCase())
     if (!formatAllowed) {
-      console.log(`DEBUG: Export format ${format} not allowed for ${currentPlan.id} plan`)
       return false
     }
 
     // Get real-time export count if not provided
     if (currentExportCount === null) {
-      currentExportCount = parseInt(localStorage.getItem('invoice_export_count') || '0')
+      const usageCounts = await userService.getResourceUsageCounts()
+      currentExportCount = usageCounts.invoice_exports || 0
     }
 
     // Check export count limits
+    const limitReached = await this.hasReachedLimit('invoice_exports', currentExportCount)
+    
     if (format.toLowerCase() === 'drive') {
-      const canExport = limitations.exportToDrive && !this.hasReachedLimit('invoice_exports', currentExportCount)
-      console.log(`DEBUG: Drive export check:`, {
-        exportToDriveAllowed: limitations.exportToDrive,
-        currentExportCount,
-        limitReached: this.hasReachedLimit('invoice_exports', currentExportCount),
-        canExport
-      })
+      const canExport = limitations.exportToDrive && !limitReached
       return canExport
     }
 
-    const canExport = !this.hasReachedLimit('invoice_exports', currentExportCount)
-    console.log(`DEBUG: ${format} export check:`, {
-      currentExportCount,
-      limitReached: this.hasReachedLimit('invoice_exports', currentExportCount),
-      canExport
-    })
+    const canExport = !limitReached
     return canExport
   }
 
@@ -729,7 +631,7 @@ class SubscriptionService {
   }
 
   // Check if user can share via email
-  canShareViaEmail(currentEmailShares = null) {
+  async canShareViaEmail(currentEmailShares = null) {
     const user = userService.getCurrentUser()
     if (!user) return false
 
@@ -739,23 +641,18 @@ class SubscriptionService {
 
     // Free users cannot share via email
     if (!limitations.emailShare) {
-      console.log(`DEBUG: Email sharing not allowed for ${currentPlan.id} plan`)
       return false
     }
 
     // Get real-time email share count if not provided
     if (currentEmailShares === null) {
-      currentEmailShares = parseInt(localStorage.getItem('email_share_count') || '0')
+      const usageCounts = await userService.getResourceUsageCounts()
+      currentEmailShares = usageCounts.email_shares || 0
     }
 
     // Check count limits for Pro users
-    const canShare = !this.hasReachedLimit('email_shares', currentEmailShares)
-    console.log(`DEBUG: Email share check:`, {
-      emailShareAllowed: limitations.emailShare,
-      currentEmailShares,
-      limitReached: this.hasReachedLimit('email_shares', currentEmailShares),
-      canShare
-    })
+    const limitReached = await this.hasReachedLimit('email_shares', currentEmailShares)
+    const canShare = !limitReached
     return canShare
   }
 

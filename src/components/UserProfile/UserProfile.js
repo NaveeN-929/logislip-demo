@@ -9,6 +9,7 @@ import secureLogger from '../../utils/secureLogger'
 const UserProfile = ({ isOpen, onClose }) => {
   const [user, setUser] = useState(null)
   const [analytics, setAnalytics] = useState(null)
+  const [usageStats, setUsageStats] = useState(null)
   const [showSubscriptionPlans, setShowSubscriptionPlans] = useState(false)
   const [loading, setLoading] = useState(true)
   const [regeneratingAvatar, setRegeneratingAvatar] = useState(false)
@@ -55,8 +56,10 @@ const UserProfile = ({ isOpen, onClose }) => {
     try {
       const currentUser = userService.getCurrentUser()
       const userAnalytics = await userService.getUserAnalytics()
+      const userUsageStats = await subscriptionService.getUsageStats()
       setUser(currentUser)
       setAnalytics(userAnalytics)
+      setUsageStats(userUsageStats)
     } catch (error) {
       secureLogger.error('Error loading user data:', error)
     } finally {
@@ -100,7 +103,6 @@ const UserProfile = ({ isOpen, onClose }) => {
   }
 
   const subscription = subscriptionService.getCurrentSubscription()
-  const usageStats = subscriptionService.getUsageStats()
 
   if (!isOpen) return null
 

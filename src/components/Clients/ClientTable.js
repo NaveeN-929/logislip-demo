@@ -251,7 +251,7 @@ function ClientTable({ showAdvanceSearch = false }) {
                   <div className={defaultTdContent}>
                     <Menu
                       menuButton={
-                        <MenuButton>
+                        <MenuButton aria-label="Client actions">
                           <div className="bg-gray-50 px-2 rounded-xl">
                             <svg
                               xmlns="http://www.w3.org/2000/svg"
@@ -271,11 +271,19 @@ function ClientTable({ showAdvanceSearch = false }) {
                         </MenuButton>
                       }
                       transition
+                      role="menu"
+                      aria-label="Client actions menu"
                     >
-                      <MenuItem onClick={() => handleEdit(client)}>
+                      <MenuItem 
+                        onClick={() => handleEdit(client)}
+                        role="menuitem"
+                      >
                         Edit
                       </MenuItem>
-                      <MenuItem onClick={() => handleDelete(client)}>
+                      <MenuItem 
+                        onClick={() => handleDelete(client)}
+                        role="menuitem"
+                      >
                         Delete
                       </MenuItem>
                     </Menu>

@@ -103,11 +103,21 @@ export const invoiceSlice = createSlice({
     },
 
     setNewInvoices: (state, action) => {
-      // Check subscription limits before adding invoice
       const user = userService.getCurrentUser();
-      if (user && !subscriptionService.canCreateResource('invoices', state.data.length)) {
-        console.log('INVOICE CREATION BLOCKED: Subscription limit reached');
-        return; // Don't add invoice if limit is reached
+      if (!user) {
+        console.log('INVOICE CREATION BLOCKED: No user found');
+        return;
+      }
+      
+      // Double-check subscription limits in Redux as a safeguard
+      const plans = subscriptionService.getSubscriptionPlans();
+      const currentPlan = plans[user.subscription_tier] || plans.free;
+      const invoiceLimit = currentPlan.limitations.invoicesSaveExport;
+      
+      // If user has a limit, check current count
+      if (invoiceLimit !== -1 && state.data.length >= invoiceLimit) {
+        console.log(`INVOICE CREATION BLOCKED: Limit reached - current: ${state.data.length}, limit: ${invoiceLimit}`);
+        return; // Block creation if limit reached
       }
       
       const { payload } = action;
@@ -142,6 +152,16 @@ export const invoiceSlice = createSlice({
       const newDetailList = [...state.detailList, { ...payload, id }];
       state.detailList = newDetailList;
       localforage.setItem(INVOICE_DETAILS, sanitizeDataForStorage(newDetailList));
+
+      // Increment usage count in Supabase
+      console.log(`📝 Attempting to increment invoices count for ID: ${id}`);
+      userService.incrementResourceUsage('invoices', id)
+        .then((result) => {
+          console.log('✅ Invoice usage count incremented in Supabase:', result);
+        })
+        .catch(error => {
+          console.error('❌ Failed to increment invoice usage count:', error);
+        });
     },
 
     setDefaultColor: (state, action) => {
@@ -165,6 +185,7 @@ export const invoiceSlice = createSlice({
     },
 
     onConfirmDeletedInvoice: (state, action) => {
+      const deletedInvoice = state.data.find(invoice => invoice.id === state.deletedID);
       const newDatas = state.data.filter(
         (invoice) => invoice.id !== state.deletedID
       );
@@ -178,6 +199,17 @@ export const invoiceSlice = createSlice({
       state.deletedID = null;
       localforage.setItem(INVOICES_KEY, sanitizeDataForStorage(newDatas));
       localforage.setItem(INVOICE_DETAILS, sanitizeDataForStorage(newDetails));
+
+      // Decrement usage count in Supabase
+      if (deletedInvoice) {
+        userService.decrementResourceUsage('invoices', deletedInvoice.id)
+          .then(() => {
+            console.log('Invoice usage count decremented in Supabase');
+          })
+          .catch(error => {
+            console.error('Failed to decrement invoice usage count:', error);
+          });
+      }
     },
 
     onConfirmEditInvoice: (state, action) => {

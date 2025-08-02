@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import cloudSyncService from "../../services/cloudSyncService";
 
-// TODO: Replace with your real Google OAuth Client ID from https://console.cloud.google.com/apis/credentials
-const GOOGLE_CLIENT_ID = "943961402144-ia11jgpap3d4siif96tem357e7ihep6m.apps.googleusercontent.com";
+// Google OAuth Client ID from environment variables
+const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
 const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.send";
 const COMBINED_SCOPE = `${GOOGLE_DRIVE_SCOPE} ${GMAIL_SCOPE}`;

@@ -20,7 +20,7 @@ export default function LoginScreen({ onAuth, onToken, onCloudSyncReady }) {
           if (window.google && window.google.accounts) {
             if (!tokenClient && isMounted) {
               const client = window.google.accounts.oauth2.initTokenClient({
-                client_id: "943961402144-ia11jgpap3d4siif96tem357e7ihep6m.apps.googleusercontent.com",
+                client_id: process.env.REACT_APP_GOOGLE_CLIENT_ID,
                 scope: "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/gmail.send",
                 callback: async (resp) => {
                   if (resp.error) {
@@ -70,7 +70,7 @@ export default function LoginScreen({ onAuth, onToken, onCloudSyncReady }) {
       }
       if (!tokenClient && isMounted) {
         const client = window.google.accounts.oauth2.initTokenClient({
-          client_id: "943961402144-ia11jgpap3d4siif96tem357e7ihep6m.apps.googleusercontent.com",
+          client_id: process.env.REACT_APP_GOOGLE_CLIENT_ID,
           scope: "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/gmail.send",
           callback: async (resp) => {
             if (resp.error) {

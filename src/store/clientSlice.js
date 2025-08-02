@@ -29,16 +29,26 @@ export const clientsSlice = createSlice({
   initialState,
   reducers: {
     addNewClient: (state, action) => {
-      // Check subscription limits before adding client
+      // Check subscription limits before adding client (async check will be handled by component)
       const user = userService.getCurrentUser();
-      if (user && !subscriptionService.canCreateResource('clients', state.data.length)) {
-        console.log('CLIENT CREATION BLOCKED: Subscription limit reached');
-        return; // Don't add client if limit is reached
+      if (!user) {
+        console.log('CLIENT CREATION BLOCKED: No user found');
+        return;
       }
       
       const newDatas = [...state.data, action.payload];
       state.data = newDatas;
       localforage.setItem(CLIENTS_KEY, sanitizeDataForStorage(newDatas));
+
+      // Increment usage count in Supabase
+      console.log(`📝 Attempting to increment clients count for ID: ${action.payload.id}`);
+      userService.incrementResourceUsage('clients', action.payload.id)
+        .then((result) => {
+          console.log('✅ Client usage count incremented in Supabase:', result);
+        })
+        .catch(error => {
+          console.error('❌ Failed to increment client usage count:', error);
+        });
 
       const reNewForm = {
         id: nanoid(),
@@ -92,12 +102,24 @@ export const clientsSlice = createSlice({
     },
 
     onConfirmDeletedClient: (state, action) => {
+      const deletedClient = state.data.find(client => client.id === state.deletedID);
       const newDatas = state.data.filter(
         (client) => client.id !== state.deletedID
       );
       state.data = newDatas;
       state.deletedID = null;
       localforage.setItem(CLIENTS_KEY, sanitizeDataForStorage(newDatas));
+
+      // Decrement usage count in Supabase
+      if (deletedClient) {
+        userService.decrementResourceUsage('clients', deletedClient.id)
+          .then(() => {
+            console.log('Client usage count decremented in Supabase');
+          })
+          .catch(error => {
+            console.error('Failed to decrement client usage count:', error);
+          });
+      }
     },
 
     onConfirmEditClient: (state, action) => {
