@@ -20,14 +20,14 @@ function DashboardWidgets() {
   const products = useSelector(getAllProductSelector) || [];
   const totalBalance = useSelector(getTotalBalance) || 0;
   const allInvoices = useSelector(getAllInvoiceSelector) || [];
-  const { getCurrentPlan } = useSubscriptionLimits();
+  const { getCurrentPlan, usageCounts } = useSubscriptionLimits();
   
   const user = userService.getCurrentUser();
   const currentPlan = getCurrentPlan();
   
-  // Get current usage counts
-  const exportCount = parseInt(localStorage.getItem('invoice_export_count') || '0');
-  const emailShareCount = parseInt(localStorage.getItem('email_share_count') || '0');
+  // Get current usage counts from Supabase (real-time)
+  const exportCount = usageCounts.invoice_exports || 0;
+  const emailShareCount = usageCounts.email_shares || 0;
 
 
 

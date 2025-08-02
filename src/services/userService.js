@@ -99,37 +99,6 @@ class UserService {
   // Register or login user
   async authenticateUser(googleProfile, accessToken) {
     try {
-      // Check if Supabase is configured
-      if (!process.env.REACT_APP_SUPABASE_URL || 
-          process.env.REACT_APP_SUPABASE_URL === 'https://your-project.supabase.co' ||
-          !process.env.REACT_APP_SUPABASE_ANON_KEY ||
-          process.env.REACT_APP_SUPABASE_ANON_KEY === 'your-supabase-anon-key') {
-        secureLogger.warn('🟡 Supabase not fully configured. Using fallback authentication.');
-        // Check for stored avatar first, then Google picture, then generate new
-        const avatarKey = `logislip_avatar_${googleProfile.email}`;
-        const storedAvatar = localStorage.getItem(avatarKey);
-        
-        const avatarUrl = storedAvatar || googleProfile.picture || this.getUserAvatar(googleProfile.email);
-        
-        // Return mock user for development with proper Free plan limits
-        const mockUser = {
-          id: 'demo-user-' + googleProfile.id,
-          google_id: googleProfile.id,
-          email: googleProfile.email,
-          name: googleProfile.name,
-          avatar_url: avatarUrl,
-          subscription_tier: 'free',
-          subscription_status: 'active',
-          usage_limit: 3, // Free plan limit for invoices
-          usage_count: 0,
-          created_at: new Date().toISOString()
-        };
-        
-        this.currentUser = mockUser;
-        localStorage.setItem('logislip_user', JSON.stringify(mockUser));
-        return mockUser;
-      }
-      
       // Check if user exists
       const { data: existingUser, error: _fetchError } = await supabase
         .from('users')
@@ -160,6 +129,9 @@ class UserService {
 
         if (updateError) throw updateError
         user = updatedUser
+        
+        // For existing users, sync localStorage counts to Supabase
+        await this.syncLocalStorageCountsToSupabase()
       } else {
         // Create new user - generate random avatar if Google doesn't provide picture
         const avatarUrl = googleProfile.picture || this.getUserAvatar(googleProfile.email);
@@ -181,6 +153,9 @@ class UserService {
 
         if (createError) throw createError
         user = newUser
+        
+        // Initialize resource usage for new user
+        await this.initializeResourceUsage(user.id, 'free')
       }
 
       // Create session
@@ -209,7 +184,7 @@ class UserService {
       await this.logUserAction('login', { 
         google_id: googleProfile.id,
         login_time: new Date().toISOString()
-      })
+      }, 'authentication', user.id)
 
       return user
     } catch (error) {
@@ -225,15 +200,6 @@ class UserService {
     }
 
     try {
-      // Check if Supabase is configured
-      if (!process.env.REACT_APP_SUPABASE_URL || 
-          process.env.REACT_APP_SUPABASE_URL === 'https://your-project.supabase.co' ||
-          !process.env.REACT_APP_SUPABASE_ANON_KEY ||
-          process.env.REACT_APP_SUPABASE_ANON_KEY === 'your-supabase-anon-key') {
-        // In fallback mode, just check if user exists in localStorage
-        return !!this.currentUser;
-      }
-
       const { data: session, error } = await supabase
         .from('user_sessions')
         .select('*')
@@ -265,7 +231,7 @@ class UserService {
   }
 
   // Log user actions for tracking
-  async logUserAction(action, details = {}) {
+  async logUserAction(action, details = {}, resourceType = 'general', resourceId = null) {
     if (!this.currentUser) return
 
     try {
@@ -274,6 +240,8 @@ class UserService {
         .insert({
           user_id: this.currentUser.id,
           action,
+          resource_type: resourceType,
+          resource_id: resourceId,
           details
         })
     } catch (error) {
@@ -286,12 +254,6 @@ class UserService {
     if (!this.currentUser) return false
 
     try {
-      // Check if Supabase is configured
-      if (!process.env.REACT_APP_SUPABASE_URL || process.env.REACT_APP_SUPABASE_URL === 'https://your-project.supabase.co') {
-        // Use local data for development
-        return this.currentUser.usage_count < this.currentUser.usage_limit;
-      }
-      
       // Get current user data
       const { data: user, error } = await supabase
         .from('users')
@@ -308,7 +270,7 @@ class UserService {
       return user.usage_count < user.usage_limit
     } catch (error) {
       secureLogger.error('Error checking usage limit:', error)
-      return this.currentUser.usage_count < this.currentUser.usage_limit
+      throw error
     }
   }
 
@@ -317,14 +279,6 @@ class UserService {
     if (!this.currentUser) return
 
     try {
-      // Check if Supabase is configured
-      if (!process.env.REACT_APP_SUPABASE_URL || process.env.REACT_APP_SUPABASE_URL === 'https://your-project.supabase.co') {
-        // Use local storage for development
-        this.currentUser.usage_count += 1;
-        localStorage.setItem('logislip_user', JSON.stringify(this.currentUser));
-        return this.currentUser;
-      }
-      
       const { data: updatedUser, error } = await supabase
         .from('users')
         .update({ 
@@ -343,15 +297,280 @@ class UserService {
       await this.logUserAction(action, {
         new_usage_count: updatedUser.usage_count,
         usage_limit: updatedUser.usage_limit
-      })
+      }, 'usage', this.currentUser.id)
 
       return updatedUser
     } catch (error) {
       secureLogger.error('Error incrementing usage:', error)
-      // Fallback to local increment
-      this.currentUser.usage_count += 1;
-      localStorage.setItem('logislip_user', JSON.stringify(this.currentUser));
-      return this.currentUser;
+      throw error
+    }
+  }
+
+  // Initialize resource usage for a new user
+  async initializeResourceUsage(userId, subscriptionTier = 'free') {
+    try {
+      const plans = await this.getSubscriptionPlans()
+      const currentPlan = plans.find(plan => plan.plan_id === subscriptionTier) || 
+                         plans.find(plan => plan.plan_id === 'free')
+      
+      const resourceTypes = ['clients', 'products', 'invoices', 'invoice_exports', 'email_shares']
+      const resourceLimits = {
+        clients: currentPlan?.limitations?.clients || 3,
+        products: currentPlan?.limitations?.products || 3,
+        invoices: currentPlan?.limitations?.invoicesSaveExport || 3,
+        invoice_exports: currentPlan?.limitations?.invoicesSaveExport || 3,
+        email_shares: currentPlan?.limitations?.invoicesSaveExport || 3
+      }
+
+      for (const resourceType of resourceTypes) {
+        await supabase
+          .from('resource_usage')
+          .upsert({
+            user_id: userId,
+            resource_type: resourceType,
+            current_count: 0,
+            limit_count: resourceLimits[resourceType],
+            last_reset: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'user_id,resource_type'
+          })
+      }
+    } catch (error) {
+      secureLogger.error('Error initializing resource usage:', error)
+      throw error
+    }
+  }
+
+  // Get resource usage counts from Supabase
+  async getResourceUsageCounts() {
+    if (!this.currentUser) return {}
+
+    try {
+      const { data: usage, error } = await supabase
+        .from('resource_usage')
+        .select('resource_type, current_count, limit_count')
+        .eq('user_id', this.currentUser.id)
+
+      if (error) throw error
+
+      // Convert array to object
+      const usageCounts = {}
+      usage.forEach(item => {
+        usageCounts[item.resource_type] = item.current_count
+      })
+
+      return usageCounts
+    } catch (error) {
+      secureLogger.error('Error getting resource usage counts:', error)
+      throw error
+    }
+  }
+
+  // Check resource usage limit
+  async checkResourceUsageLimit(resourceType) {
+    if (!this.currentUser) return false
+
+    try {
+      const { data: usage, error } = await supabase
+        .from('resource_usage')
+        .select('current_count, limit_count')
+        .eq('user_id', this.currentUser.id)
+        .eq('resource_type', resourceType)
+        .single()
+
+      if (error) throw error
+
+      return usage.current_count < usage.limit_count
+    } catch (error) {
+      secureLogger.error('Error checking resource usage limit:', error)
+      throw error
+    }
+  }
+
+  // Increment resource usage count
+  async incrementResourceUsage(resourceType, resourceId = null) {
+    if (!this.currentUser) return
+
+    try {
+      // First get the current count
+      let { data: currentUsage, error: fetchError } = await supabase
+        .from('resource_usage')
+        .select('current_count, limit_count')
+        .eq('user_id', this.currentUser.id)
+        .eq('resource_type', resourceType)
+        .single()
+
+      if (fetchError) {
+        // If resource usage doesn't exist, initialize it first
+        if (fetchError.code === 'PGRST116') {
+          console.log(`Initializing resource usage for ${resourceType}`);
+          await this.initializeResourceUsage(this.currentUser.id, this.currentUser.subscription_tier);
+          // Try to fetch again
+          const { data: newUsage, error: refetchError } = await supabase
+            .from('resource_usage')
+            .select('current_count, limit_count')
+            .eq('user_id', this.currentUser.id)
+            .eq('resource_type', resourceType)
+            .single()
+          
+          if (refetchError) throw refetchError;
+          currentUsage = newUsage;
+        } else {
+          throw fetchError;
+        }
+      }
+
+      // Update with incremented count
+      const newCount = (currentUsage.current_count || 0) + 1;
+      const { data: updatedUsage, error } = await supabase
+        .from('resource_usage')
+        .update({ 
+          current_count: newCount,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', this.currentUser.id)
+        .eq('resource_type', resourceType)
+        .select()
+        .single()
+
+      if (error) throw error
+
+      console.log(`✅ ${resourceType} count incremented from ${currentUsage.current_count} to ${updatedUsage.current_count}`);
+
+      // Log the usage
+      await this.logUserAction(`${resourceType}_create`, {
+        new_count: updatedUsage.current_count,
+        limit: updatedUsage.limit_count
+      }, resourceType, resourceId)
+
+      return updatedUsage
+    } catch (error) {
+      secureLogger.error('Error incrementing resource usage:', error)
+      console.error('Full error details:', error);
+      throw error
+    }
+  }
+
+  // Decrement resource usage count
+  async decrementResourceUsage(resourceType, resourceId = null) {
+    if (!this.currentUser) return
+
+    try {
+      // First get the current count
+      const { data: currentUsage, error: fetchError } = await supabase
+        .from('resource_usage')
+        .select('current_count, limit_count')
+        .eq('user_id', this.currentUser.id)
+        .eq('resource_type', resourceType)
+        .single()
+
+      if (fetchError) throw fetchError
+
+      // Calculate new count (prevent negative)
+      const newCount = Math.max((currentUsage.current_count || 0) - 1, 0);
+
+      // Update with decremented count
+      const { data: updatedUsage, error } = await supabase
+        .from('resource_usage')
+        .update({ 
+          current_count: newCount,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', this.currentUser.id)
+        .eq('resource_type', resourceType)
+        .select()
+        .single()
+
+      if (error) throw error
+
+      console.log(`✅ ${resourceType} count decremented from ${currentUsage.current_count} to ${updatedUsage.current_count}`);
+
+      // Log the usage
+      await this.logUserAction(`${resourceType}_delete`, {
+        new_count: updatedUsage.current_count,
+        limit: updatedUsage.limit_count
+      }, resourceType, resourceId)
+
+      return updatedUsage
+    } catch (error) {
+      secureLogger.error('Error decrementing resource usage:', error)
+      console.error('Full error details:', error);
+      throw error
+    }
+  }
+
+  // Sync localStorage counts to Supabase (one-time sync for existing data)
+  async syncLocalStorageCountsToSupabase() {
+    if (!this.currentUser) return
+
+    try {
+      // Get current localStorage data
+      const clients = JSON.parse(localStorage.getItem('clients') || '[]')
+      const products = JSON.parse(localStorage.getItem('products') || '[]')
+      const invoices = JSON.parse(localStorage.getItem('invoices') || '[]')
+      const exportCount = parseInt(localStorage.getItem('invoice_export_count') || '0')
+      const emailShareCount = parseInt(localStorage.getItem('email_share_count') || '0')
+
+      const localCounts = {
+        clients: clients.length,
+        products: products.length,
+        invoices: invoices.length,
+        invoice_exports: exportCount,
+        email_shares: emailShareCount
+      }
+
+      console.log('Syncing localStorage counts to Supabase:', localCounts)
+
+      // Update each resource type in Supabase with the localStorage count
+      for (const [resourceType, count] of Object.entries(localCounts)) {
+        await supabase
+          .from('resource_usage')
+          .update({
+            current_count: count,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', this.currentUser.id)
+          .eq('resource_type', resourceType)
+      }
+
+      console.log('Successfully synced localStorage counts to Supabase')
+    } catch (error) {
+      secureLogger.error('Error syncing localStorage counts to Supabase:', error)
+      throw error
+    }
+  }
+
+  // Update resource usage limits when subscription changes
+  async updateResourceUsageLimits(subscriptionTier) {
+    if (!this.currentUser) return
+
+    try {
+      const plans = await this.getSubscriptionPlans()
+      const currentPlan = plans.find(plan => plan.plan_id === subscriptionTier) || 
+                         plans.find(plan => plan.plan_id === 'free')
+      
+      const resourceLimits = {
+        clients: currentPlan?.limitations?.clients || 3,
+        products: currentPlan?.limitations?.products || 3,
+        invoices: currentPlan?.limitations?.invoicesSaveExport || 3,
+        invoice_exports: currentPlan?.limitations?.invoicesSaveExport || 3,
+        email_shares: currentPlan?.limitations?.invoicesSaveExport || 3
+      }
+
+      for (const [resourceType, limit] of Object.entries(resourceLimits)) {
+        await supabase
+          .from('resource_usage')
+          .update({
+            limit_count: limit,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', this.currentUser.id)
+          .eq('resource_type', resourceType)
+      }
+    } catch (error) {
+      secureLogger.error('Error updating resource usage limits:', error)
+      throw error
     }
   }
 
@@ -392,10 +611,13 @@ class UserService {
 
       if (error) throw error
 
+      // Update resource usage limits for the new subscription tier
+      await this.updateResourceUsageLimits(subscriptionData.tier)
+
       this.currentUser = updatedUser
       localStorage.setItem('logislip_user', JSON.stringify(this.currentUser))
 
-      await this.logUserAction('subscription_updated', subscriptionData)
+      await this.logUserAction('subscription_updated', subscriptionData, 'subscription', this.currentUser.id)
 
       return updatedUser
     } catch (error) {
@@ -529,7 +751,7 @@ class UserService {
       // Log the action
       await this.logUserAction('avatar_regenerated', {
         new_avatar_url: newAvatarUrl
-      });
+      }, 'user_profile', this.currentUser.id);
 
       return updatedUser;
     } catch (error) {

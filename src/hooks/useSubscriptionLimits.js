@@ -13,24 +13,11 @@ const useSubscriptionLimits = () => {
   const [loading, setLoading] = useState(true)
 
   // Get real-time usage counts (called every time we need fresh data)
-  const getRealTimeUsageCounts = useCallback(() => {
+  const getRealTimeUsageCounts = useCallback(async () => {
     try {
-      // Get counts from localStorage using the actual keys used by the app
-      const clients = JSON.parse(localStorage.getItem('clients') || '[]')
-      const products = JSON.parse(localStorage.getItem('products') || '[]')
-      const invoices = JSON.parse(localStorage.getItem('invoices') || '[]')
-      
-      // For exports and email shares, we track these in separate counters
-      const exportCount = parseInt(localStorage.getItem('invoice_export_count') || '0')
-      const emailShareCount = parseInt(localStorage.getItem('email_share_count') || '0')
-
-      return {
-        clients: clients.length,
-        products: products.length,
-        invoices: invoices.length,
-        invoice_exports: exportCount,
-        email_shares: emailShareCount
-      }
+      // Use userService to get counts from Supabase
+      const counts = await userService.getResourceUsageCounts()
+      return counts
     } catch (error) {
       console.error('Error getting real-time usage counts:', error)
       return {
@@ -47,7 +34,7 @@ const useSubscriptionLimits = () => {
   const loadUsageCounts = useCallback(async () => {
     setLoading(true)
     try {
-      const counts = getRealTimeUsageCounts()
+      const counts = await getRealTimeUsageCounts()
       setUsageCounts(counts)
     } catch (error) {
       console.error('Error loading usage counts:', error)
@@ -62,8 +49,8 @@ const useSubscriptionLimits = () => {
   }, [loadUsageCounts])
 
   // Check if user can create a resource (gets fresh count every time)
-  const canCreateResource = useCallback((resourceType) => {
-    const canCreate = subscriptionService.canCreateResource(resourceType)
+  const canCreateResource = useCallback(async (resourceType) => {
+    const canCreate = await subscriptionService.canCreateResource(resourceType)
     return canCreate
   }, [])
 
@@ -90,11 +77,11 @@ const useSubscriptionLimits = () => {
   }, [])
 
   // Show usage limit modal if limit reached
-  const showLimitModal = useCallback((resourceType, onUpgrade) => {
+  const showLimitModal = useCallback(async (resourceType, onUpgrade) => {
     const user = userService.getCurrentUser()
     const plans = subscriptionService.getSubscriptionPlans()
     const currentPlan = plans[user?.subscription_tier] || plans.free
-    const currentCounts = getRealTimeUsageCounts()
+    const currentCounts = await getRealTimeUsageCounts()
     const currentCount = currentCounts[resourceType] || 0
     const limit = currentPlan.limitations[resourceType] || currentPlan.limitations.invoicesSaveExport
 
@@ -105,8 +92,10 @@ const useSubscriptionLimits = () => {
       email_shares: `You've reached your limit of ${limit} email share${limit > 1 ? 's' : ''}. Upgrade to share more invoices.`
     }
 
+    const canCreate = await canCreateResource(resourceType)
+
     return {
-      show: !canCreateResource(resourceType),
+      show: !canCreate,
       message: messages[resourceType] || `You've reached your usage limit. Upgrade to continue.`,
       currentCount,
       limit: limit === -1 ? 'Unlimited' : limit,
@@ -120,14 +109,11 @@ const useSubscriptionLimits = () => {
       // Only increment counters for actions that need manual tracking
       // Clients, products, and invoices are tracked by array length automatically
       if (actionType === 'invoice_exports' || actionType === 'email_shares') {
-        subscriptionService.incrementUsageCount(actionType)
-        console.log(`DEBUG: Incremented ${actionType} counter`)
-      } else {
-        console.log(`DEBUG: ${actionType} tracked automatically by array length`)
+        await subscriptionService.incrementUsageCount(actionType)
       }
       
       // Update local state with fresh counts
-      const newCounts = getRealTimeUsageCounts()
+      const newCounts = await getRealTimeUsageCounts()
       setUsageCounts(newCounts)
 
       // Track in service for analytics

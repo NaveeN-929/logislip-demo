@@ -26,16 +26,26 @@ export const productSlice = createSlice({
   initialState,
   reducers: {
     addNewProduct: (state, action) => {
-      // Check subscription limits before adding product
+      // Check subscription limits before adding product (async check will be handled by component)
       const user = userService.getCurrentUser();
-      if (user && !subscriptionService.canCreateResource('products', state.data.length)) {
-        console.log('PRODUCT CREATION BLOCKED: Subscription limit reached');
-        return; // Don't add product if limit is reached
+      if (!user) {
+        console.log('PRODUCT CREATION BLOCKED: No user found');
+        return;
       }
       
       const newDatas = [...state.data, action.payload];
       state.data = newDatas;
       localforage.setItem(PRODUCTS_KEY, sanitizeDataForStorage(newDatas));
+
+      // Increment usage count in Supabase
+      console.log(`📝 Attempting to increment products count for ID: ${action.payload.id}`);
+      userService.incrementResourceUsage('products', action.payload.id)
+        .then((result) => {
+          console.log('✅ Product usage count incremented in Supabase:', result);
+        })
+        .catch(error => {
+          console.error('❌ Failed to increment product usage count:', error);
+        });
 
       const reNewForm = {
         id: nanoid(),
@@ -88,12 +98,24 @@ export const productSlice = createSlice({
     },
 
     onConfirmDeletedProduct: (state, action) => {
+      const deletedProduct = state.data.find(product => product.id === state.deletedID);
       const newDatas = state.data.filter(
         (product) => product.id !== state.deletedID
       );
       state.data = newDatas;
       state.deletedID = null;
       localforage.setItem(PRODUCTS_KEY, sanitizeDataForStorage(newDatas));
+
+      // Decrement usage count in Supabase
+      if (deletedProduct) {
+        userService.decrementResourceUsage('products', deletedProduct.id)
+          .then(() => {
+            console.log('Product usage count decremented in Supabase');
+          })
+          .catch(error => {
+            console.error('Failed to decrement product usage count:', error);
+          });
+      }
     },
 
     onConfirmEditProduct: (state, action) => {
