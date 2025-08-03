@@ -41,6 +41,22 @@ function QuickAddProduct() {
   const [isTouched, setIsTouched] = useState(false);
   const [productForm, setProductForm] = useState(emptyForm);
   const [showUsageLimitModal, setShowUsageLimitModal] = useState(false);
+  const [canCreateProduct, setCanCreateProduct] = useState(true); // Cache the permission check
+  
+  // Check permissions once on component mount to avoid repeated calls
+  useEffect(() => {
+    const checkPermissions = async () => {
+      try {
+        const canCreate = await canCreateResource('products');
+        setCanCreateProduct(canCreate);
+      } catch (error) {
+        // Optimistic fallback - allow creation
+        setCanCreateProduct(true);
+      }
+    };
+    
+    checkPermissions();
+  }, [canCreateResource]);
   const [validForm, setValidForm] = useState(
     Object.keys(emptyForm).reduce((a, b) => {
       return { ...a, [b]: false };
@@ -243,12 +259,12 @@ function QuickAddProduct() {
         </div>
         <div className="mt-3">
           <Button 
-            onClick={canCreateResource('products') ? submitHandler : handleDisabledClick} 
+            onClick={canCreateProduct ? submitHandler : handleDisabledClick} 
             block={1}
-            disabled={!canCreateResource('products')}
+            disabled={!canCreateProduct}
           >
             <span className="inline-block ml-2"> 
-              {canCreateResource('products') ? 'Submit' : 'Upgrade to Add Products'} 
+              {canCreateProduct ? 'Submit' : 'Upgrade to Add Products'} 
             </span>
           </Button>
         </div>

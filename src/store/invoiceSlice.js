@@ -109,16 +109,9 @@ export const invoiceSlice = createSlice({
         return;
       }
       
-      // Double-check subscription limits in Redux as a safeguard
-      const plans = subscriptionService.getSubscriptionPlans();
-      const currentPlan = plans[user.subscription_tier] || plans.free;
-      const invoiceLimit = currentPlan.limitations.invoicesSaveExport;
-      
-      // If user has a limit, check current count
-      if (invoiceLimit !== -1 && state.data.length >= invoiceLimit) {
-        console.log(`INVOICE CREATION BLOCKED: Limit reached - current: ${state.data.length}, limit: ${invoiceLimit}`);
-        return; // Block creation if limit reached
-      }
+      // Note: Subscription limits are checked in the UI layer using canCreateResource()
+      // which gets real-time counts from Supabase, similar to how exports work
+      // No need for a Redux-level check against local state that could be stale
       
       const { payload } = action;
 

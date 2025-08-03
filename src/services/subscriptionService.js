@@ -508,8 +508,8 @@ class SubscriptionService {
     }
   }
 
-  // Check if user has reached limit for a specific resource - WITH REAL-TIME CHECKING
-  async hasReachedLimit(resourceType, currentCount = null) {
+  // Check if user has reached limit for a specific resource - OPTIMIZED WITH CACHING
+  async hasReachedLimit(resourceType, currentCount = null, useCache = true) {
     const user = userService.getCurrentUser()
     if (!user) return true
 
@@ -517,15 +517,16 @@ class SubscriptionService {
     const currentPlan = plans[user.subscription_tier] || plans.free
     const limitations = currentPlan.limitations
 
-    // Get real-time count if not provided
+    // Get count (with optional caching) if not provided
     if (currentCount === null) {
       try {
-        // Use Supabase for real-time counts
-        const usageCounts = await userService.getResourceUsageCounts()
+        // Use cached counts for faster response
+        const usageCounts = await userService.getResourceUsageCounts(useCache)
         currentCount = usageCounts[resourceType] || 0
       } catch (error) {
         console.error('Error getting resource usage count:', error)
-        throw error
+        // Fallback: assume 0 usage (optimistic)
+        currentCount = 0
       }
     }
 
@@ -560,29 +561,28 @@ class SubscriptionService {
     return hasReached
   }
 
-  // Check if user can create a new resource (before creation) - ENHANCED
-  async canCreateResource(resourceType, currentCount = null) {
+  // Check if user can create a new resource (before creation) - OPTIMIZED
+  async canCreateResource(resourceType, currentCount = null, useCache = true) {
     const user = userService.getCurrentUser()
     if (!user) {
       return false
     }
 
     try {
-      // Use the updated hasReachedLimit method
-      const limitReached = await this.hasReachedLimit(resourceType, currentCount)
+      // Use the updated hasReachedLimit method with caching
+      const limitReached = await this.hasReachedLimit(resourceType, currentCount, useCache)
       const canCreate = !limitReached
-      
-      // Debug removed to reduce console noise
       
       return canCreate
     } catch (error) {
       console.error('Error checking resource creation limit:', error)
-      return false
+      // Optimistic fallback: allow creation if check fails
+      return true
     }
   }
 
-  // Check if user can export with specific format
-  async canExportFormat(format, currentExportCount = null) {
+  // Check if user can export with specific format - OPTIMIZED
+  async canExportFormat(format, currentExportCount = null, useCache = true) {
     const user = userService.getCurrentUser()
     if (!user) return false
 
@@ -596,14 +596,20 @@ class SubscriptionService {
       return false
     }
 
-    // Get real-time export count if not provided
+    // Get export count (with optional caching) if not provided
     if (currentExportCount === null) {
-      const usageCounts = await userService.getResourceUsageCounts()
-      currentExportCount = usageCounts.invoice_exports || 0
+      try {
+        const usageCounts = await userService.getResourceUsageCounts(useCache)
+        currentExportCount = usageCounts.invoice_exports || 0
+      } catch (error) {
+        console.error('Error getting export usage count:', error)
+        // Fallback: assume 0 exports (optimistic)
+        currentExportCount = 0
+      }
     }
 
     // Check export count limits
-    const limitReached = await this.hasReachedLimit('invoice_exports', currentExportCount)
+    const limitReached = await this.hasReachedLimit('invoice_exports', currentExportCount, useCache)
     
     if (format.toLowerCase() === 'drive') {
       const canExport = limitations.exportToDrive && !limitReached

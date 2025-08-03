@@ -46,6 +46,23 @@ function QuickAddClient({ editForm }) {
   const [isTouched, setIsTouched] = useState(false);
   const [clientForm, setClientForm] = useState(emptyForm);
   const [showUsageLimitModal, setShowUsageLimitModal] = useState(false);
+  const [canCreateClient, setCanCreateClient] = useState(true); // Cache the permission check
+  
+  // Check permissions once on component mount to avoid repeated calls
+  useEffect(() => {
+    const checkPermissions = async () => {
+      try {
+        const canCreate = await canCreateResource('clients');
+        setCanCreateClient(canCreate);
+      } catch (error) {
+        // Optimistic fallback - allow creation
+        setCanCreateClient(true);
+      }
+    };
+    
+    checkPermissions();
+  }, [canCreateResource]);
+
   const [validForm, setValidForm] = useState(
     Object.keys(emptyForm).reduce((a, b) => {
       return { ...a, [b]: false };
@@ -268,12 +285,12 @@ function QuickAddClient({ editForm }) {
 
         <div className="mt-3">
           <Button 
-            onClick={canCreateResource('clients') ? submitHandler : handleDisabledClick} 
+            onClick={canCreateClient ? submitHandler : handleDisabledClick} 
             block={1}
-            disabled={!canCreateResource('clients')}
+            disabled={!canCreateClient}
           >
             <span className="inline-block ml-2"> 
-              {canCreateResource('clients') ? 'Submit' : 'Upgrade to Add Clients'} 
+              {canCreateClient ? 'Submit' : 'Upgrade to Add Clients'} 
             </span>
           </Button>
         </div>

@@ -1,7 +1,9 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-@import url('https://fonts.googleapis.com/css?family=Josefin+Sans');
+
+/* Import Google Fonts with font-display: swap for better loading */
+@import url('https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;600;700&display=swap');
 /* vietnamese */
 @font-face {
   font-family: 'Josefin Sans';

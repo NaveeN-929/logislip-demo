@@ -20,7 +20,7 @@ function DashboardWidgets() {
   const products = useSelector(getAllProductSelector) || [];
   const totalBalance = useSelector(getTotalBalance) || 0;
   const allInvoices = useSelector(getAllInvoiceSelector) || [];
-  const { getCurrentPlan, usageCounts, loadUsageCounts } = useSubscriptionLimits();
+  const { getCurrentPlan, usageCounts, loadUsageCounts, refreshUsageCounts } = useSubscriptionLimits();
 
   
   const user = userService.getCurrentUser();
@@ -29,24 +29,30 @@ function DashboardWidgets() {
   // Get current usage counts from Supabase (real-time)
   const exportCount = usageCounts.invoice_exports || 0;
   
-  // Refresh usage counts periodically to ensure real-time updates
+  // Listen for export events and refresh immediately
   useEffect(() => {
-    const refreshInterval = setInterval(() => {
-      loadUsageCounts();
-    }, 2000); // Refresh every 2 seconds for real-time feel
+    const handleExportComplete = (event) => {
+      console.log('📊 Dashboard received export event, refreshing counts...');
+      refreshUsageCounts(); // Force refresh when export happens
+    };
+
+    // Listen for export completion events
+    window.addEventListener('invoiceExportComplete', handleExportComplete);
     
-    // Also refresh immediately when component mounts
+    // Initial load
     loadUsageCounts();
     
-    return () => clearInterval(refreshInterval);
-  }, [loadUsageCounts]);
+    return () => {
+      window.removeEventListener('invoiceExportComplete', handleExportComplete);
+    };
+  }, [loadUsageCounts, refreshUsageCounts]);
   
   // Refresh when user changes (login/logout)
   useEffect(() => {
     if (user) {
-      loadUsageCounts();
+      refreshUsageCounts(); // Force fresh data on user change
     }
-  }, [user, loadUsageCounts]);
+  }, [user, refreshUsageCounts]);
 
 
 
