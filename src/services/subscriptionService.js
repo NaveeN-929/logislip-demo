@@ -1,5 +1,6 @@
 import userService from './userService'
 import { supabase } from '../config/supabase'
+import { loadRazorpayCheckout, openRazorpayCheckout } from '../utils/razorpay'
 
 class SubscriptionService {
   constructor() {
@@ -184,7 +185,7 @@ class SubscriptionService {
     }
   }
 
-  // Create UPI/Razorpay payment session
+  // Create Razorpay payment session (Order via Supabase Function)
   async createPaymentSession(planId, billingCycle, billingInfo) {
     const plans = this.getSubscriptionPlans()
     const selectedPlan = plans[planId]
@@ -220,16 +221,40 @@ class SubscriptionService {
 
       if (error) throw error
 
-      // Generate UPI payment details
-      const upiPaymentDetails = this.generateUPIPaymentDetails(payment, selectedPlan, billingInfo)
-      
-      return {
-        success: true,
-        paymentId: payment.id,
-        plan: selectedPlan,
-        billing: billingInfo,
-        upiDetails: upiPaymentDetails
+      // Create a Razorpay order using Supabase Edge Function
+      let order = null
+      try {
+        const { data, error: fnError } = await supabase.functions.invoke('razorpay-order', {
+          body: {
+            amount: billingInfo.price * 100,
+            currency: billingInfo.currency || 'INR',
+            receipt: payment.id,
+            notes: { plan_id: planId, billing_cycle: billingCycle }
+          }
+        })
+        if (fnError) throw fnError
+        order = data
+      } catch (e) {
+        console.error('Edge function error (razorpay-order):', e)
+        throw new Error('Failed to initialize payment')
       }
+
+      if (order && order.id) {
+        // Persist order id
+        await supabase
+          .from('payments')
+          .update({ razorpay_order_id: order.id })
+          .eq('id', payment.id)
+
+        return {
+          success: true,
+          paymentId: payment.id,
+          plan: selectedPlan,
+          billing: billingInfo,
+          razorpayOrder: order
+        }
+      }
+      throw new Error('Failed to create Razorpay order')
       
     } catch (error) {
       console.error('Payment session creation error:', error)
@@ -257,48 +282,117 @@ class SubscriptionService {
     }
   }
 
-  // Verify and confirm UPI payment
+  // Confirm payment via RPC function (Postgres)
   async confirmPayment(paymentId, transactionId) {
     try {
-      // Update payment status in Supabase
-      const { data: payment, error: paymentError } = await supabase
-        .from('payments')
-        .update({
-          status: 'completed',
-          transaction_id: transactionId,
-          completed_at: new Date().toISOString()
-        })
-        .eq('id', paymentId)
-        .select()
-        .single()
+      const { data, error } = await supabase.rpc('activate_subscription', {
+        p_payment_id: paymentId,
+        p_transaction_id: transactionId
+      })
+      if (error) throw error
 
-      if (paymentError) throw paymentError
-
-      // Get plan details
       const plans = this.getSubscriptionPlans()
-      const selectedPlan = plans[payment.plan_id]
-    
-    // Update user subscription
-    const subscriptionData = {
-        tier: payment.plan_id,
-      status: 'active',
-        endDate: this.calculateEndDate(payment.billing_cycle),
-        usageLimit: selectedPlan.limitations.invoicesSaveExport,
-        payment_id: paymentId
-    }
-    
-    await userService.updateSubscription(subscriptionData)
-    
-    return {
-      success: true,
-      subscriptionId: `sub_${Date.now()}`,
+      const selectedPlan = plans[data?.plan_id || 'free']
+
+      // Refresh the local user snapshot so UI reflects new plan without re-login
+      try {
+        const current = userService.getCurrentUser()
+        if (current?.id) {
+          const { data: freshUser, error: userErr } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', current.id)
+            .single()
+          if (!userErr && freshUser) {
+            // Persist fresh user locally
+            userService.currentUser = freshUser
+            localStorage.setItem('logislip_user', JSON.stringify(freshUser))
+            // Update resource usage limits for the new tier
+            await userService.updateResourceUsageLimits(freshUser.subscription_tier)
+            // Invalidate usage cache so UI picks up new limits immediately
+            userService.clearUsageCountsCache()
+          }
+        }
+      } catch (e) {
+        // Non-fatal; UI can still reflect after hard refresh
+        console.warn('Post-payment local user refresh failed:', e)
+      }
+
+      return {
+        success: true,
+        subscriptionId: data?.subscription_id || `sub_${Date.now()}`,
         plan: selectedPlan,
-        payment: payment
+        payment: data?.payment || null
       }
     } catch (error) {
       console.error('Payment confirmation error:', error)
       throw new Error('Failed to confirm payment')
     }
+  }
+
+  // Launch Razorpay Checkout for a prepared order
+  async payWithRazorpay({ paymentId, razorpayOrder, plan, billing }) {
+    const user = userService.getCurrentUser()
+    if (!user) throw new Error('User not authenticated')
+
+    await loadRazorpayCheckout()
+
+    return new Promise((resolve, reject) => {
+      const options = {
+        key: process.env.REACT_APP_RAZORPAY_KEY_ID,
+        amount: razorpayOrder.amount,
+        currency: razorpayOrder.currency,
+        name: 'LogiSlip',
+        description: `${plan.name} • ${billing.interval}`,
+        order_id: razorpayOrder.id,
+        prefill: {
+          name: user.name,
+          email: user.email
+        },
+        notes: { payment_id: paymentId, plan_id: plan.id },
+        handler: async (response) => {
+          try {
+            // Verify signature server-side
+            const { data: verifyResult, error: verifyError } = await supabase.functions.invoke('razorpay-verify', {
+              body: {
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_signature: response.razorpay_signature,
+                payment_id: paymentId
+              }
+            })
+
+            if (!verifyError && verifyResult?.verified) {
+              // Store razorpay_payment_id
+              await supabase
+                .from('payments')
+                .update({
+                  razorpay_payment_id: response.razorpay_payment_id
+                })
+                .eq('id', paymentId)
+
+              // Activate subscription
+              const result = await this.confirmPayment(paymentId, response.razorpay_payment_id)
+              resolve(result)
+            } else {
+              reject(new Error('Payment verification failed'))
+            }
+          } catch (err) {
+            reject(err)
+          }
+        },
+        modal: {
+          ondismiss: () => reject(new Error('Payment cancelled'))
+        },
+        theme: { color: '#2563EB' }
+      }
+
+      try {
+        openRazorpayCheckout(options)
+      } catch (err) {
+        reject(err)
+      }
+    })
   }
 
   // Calculate subscription end date
