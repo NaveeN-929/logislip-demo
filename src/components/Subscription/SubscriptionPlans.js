@@ -213,7 +213,7 @@ const SubscriptionPlans = ({ onClose }) => {
           </div>
 
           <div className="mt-8 text-center text-sm text-gray-500">
-            <p>Secure UPI payments powered by Razorpay.</p>
+            <p>Secure payments powered by Razorpay.</p>
           </div>
 
           {/* Plan Comparison Table */}
