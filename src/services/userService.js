@@ -161,7 +161,9 @@ class UserService {
             subscription_tier: 'free',
             subscription_status: 'active',
             usage_count: 0,
-            usage_limit: 3 // Free plan limit for invoices
+            usage_limit: 3,
+            phone_number: null,
+            phone_verified: false
           })
           .select()
           .single()
@@ -205,6 +207,26 @@ class UserService {
     } catch (error) {
       secureLogger.error('Authentication error:', error)
       throw error
+    }
+  }
+
+  // Update user profile fields (e.g., phone)
+  async updateUserProfile(update) {
+    if (!this.currentUser) throw new Error('Not authenticated')
+    try {
+      const { data: updated, error } = await supabase
+        .from('users')
+        .update(update)
+        .eq('id', this.currentUser.id)
+        .select()
+        .single()
+      if (error) throw error
+      this.currentUser = updated
+      localStorage.setItem('logislip_user', JSON.stringify(this.currentUser))
+      return updated
+    } catch (err) {
+      secureLogger.error('Failed to update user profile:', err)
+      throw err
     }
   }
 
