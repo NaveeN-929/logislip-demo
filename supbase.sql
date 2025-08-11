@@ -5,6 +5,11 @@ CREATE TABLE users (
   email TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL,
   avatar_url TEXT,
+  -- Phone verification fields
+  phone_number TEXT,
+  phone_verified BOOLEAN DEFAULT false,
+  phone_otp_code TEXT,
+  phone_otp_expires_at TIMESTAMP,
   subscription_tier TEXT DEFAULT 'free',
   subscription_status TEXT DEFAULT 'active',
   subscription_end_date TIMESTAMP,
@@ -76,3 +81,6 @@ CREATE INDEX idx_usage_logs_user_id ON usage_logs(user_id);
 CREATE INDEX idx_usage_logs_type ON usage_logs(user_id, resource_type);
 CREATE INDEX idx_payments_user_id ON payments(user_id);
 CREATE INDEX idx_payments_status ON payments(status);
+
+-- Optional helpful indexes for phone lookups
+CREATE INDEX IF NOT EXISTS idx_users_phone_number ON users(phone_number);

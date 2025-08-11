@@ -29,6 +29,12 @@ CREATE TABLE users (
   last_login TIMESTAMP DEFAULT NOW()
 );
 
+-- Add phone verification fields
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_number TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_otp_code TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_otp_expires_at TIMESTAMP;
+
 -- User sessions table
 CREATE TABLE user_sessions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,

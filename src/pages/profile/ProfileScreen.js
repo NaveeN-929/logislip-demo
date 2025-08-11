@@ -5,6 +5,8 @@ import subscriptionService from '../../services/subscriptionService'
 import { SyncStatusIcon } from '../../components/Common/SyncStatus'
 import { useCloudSync } from '../../hooks/useCloudSync'
 import secureLogger from '../../utils/secureLogger'
+import PhoneVerificationModal from '../../components/Auth/PhoneVerificationModal'
+import otpService from '../../services/otpService'
 
 const ProfileScreen = () => {
   const navigate = useNavigate()
@@ -13,6 +15,7 @@ const ProfileScreen = () => {
   const [loading, setLoading] = useState(true)
   const [regeneratingAvatar, setRegeneratingAvatar] = useState(false)
   const [importFile, setImportFile] = useState(null)
+  const [showPhoneModal, setShowPhoneModal] = useState(false)
   const { syncStatus, syncHistory, forceSync, exportBackup, importBackup, toggleAutoSync } = useCloudSync()
   
   // Safety check for syncStatus
@@ -102,6 +105,10 @@ const ProfileScreen = () => {
     } finally {
       setRegeneratingAvatar(false)
     }
+  }
+
+  const openChangePhone = () => {
+    setShowPhoneModal(true)
   }
 
   const subscription = subscriptionService.getCurrentSubscription()
@@ -213,6 +220,43 @@ const ProfileScreen = () => {
 
         {/* Cloud Sync Card */}
         <div className="bg-white rounded-lg shadow">
+          {/* Phone Section */}
+          <div className="p-6 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Profile</h2>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <div className="text-sm text-gray-600">Mobile number</div>
+                <div className="flex items-center gap-3">
+                  <div className="text-gray-900 font-medium">
+                    {user?.phone_number ? (
+                      <span>
+                        {user.phone_number}
+                        {user.phone_verified ? (
+                          <span className="ml-2 inline-flex items-center text-green-600 text-xs">
+                            <svg className="w-4 h-4 mr-1" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-7.25 7.25a1 1 0 01-1.414 0l-3-3a1 1 0 111.414-1.414l2.293 2.293 6.543-6.543a1 1 0 011.414 0z" clipRule="evenodd"/></svg>
+                            Verified
+                          </span>
+                        ) : (
+                          <span className="ml-2 inline-flex items-center text-yellow-600 text-xs">
+                            <svg className="w-4 h-4 mr-1" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.721-1.36 3.486 0l6.516 11.59c.75 1.335-.213 2.986-1.742 2.986H3.483c-1.53 0-2.492-1.651-1.743-2.986L8.257 3.1zM11 13a1 1 0 10-2 0 1 1 0 002 0zm-1-2a1 1 0 01-1-1V7a1 1 0 112 0v3a1 1 0 01-1 1z" clipRule="evenodd"/></svg>
+                            Not verified
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="text-gray-500">No phone number added</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center md:justify-end">
+                <button
+                  onClick={openChangePhone}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
+                >{user?.phone_number ? 'Change number' : 'Add number'}</button>
+              </div>
+            </div>
+          </div>
           <div className="p-6 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">Cloud Sync</h2>
@@ -363,6 +407,18 @@ const ProfileScreen = () => {
             </button>
           </div>
         </div>
+
+        {/* Phone Verification Modal */}
+        <PhoneVerificationModal
+          isOpen={showPhoneModal}
+          onClose={() => setShowPhoneModal(false)}
+          onVerified={async () => {
+            // Refresh latest user profile after verification
+            // We have no dedicated fetch endpoint; re-read from local service
+            const refreshed = userService.getCurrentUser()
+            setUser({ ...refreshed })
+          }}
+        />
       </div>
     </div>
   )

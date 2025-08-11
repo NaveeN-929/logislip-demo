@@ -24,6 +24,7 @@ import InvoiceDeleteConfirm from "./components/Invoice/InvoiceDeleteConfirm";
 import UsageLimitModal from "./components/UsageRestriction/UsageLimitModal";
 import userService from "./services/userService";
 import { useCloudSync } from "./hooks/useCloudSync";
+import PhoneVerificationModal from "./components/Auth/PhoneVerificationModal";
 // Remove useUsageTracking import to fix render loop
 // import useUsageTracking from "./hooks/useUsageTracking";
 
@@ -32,6 +33,7 @@ const App = () => {
   const { initializeSync } = useCloudSync();
   const [googleAuth, setGoogleAuth] = useState({ user: null, token: null });
   const [showUsageLimitModal, setShowUsageLimitModal] = useState(false);
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
 
   useEffect(() => {
     initialSetData();
@@ -93,6 +95,16 @@ const App = () => {
     }
   }, [googleAuth.token, googleAuth.user, initializeSync]);
 
+  // Prompt for phone verification after sign-in if missing/unverified
+  useEffect(() => {
+    const user = googleAuth.user
+    if (!user) return
+    // If the user does not have phone verified, show modal
+    if (!user.phone_verified || !user.phone_number) {
+      setShowPhoneModal(true)
+    }
+  }, [googleAuth.user])
+
   // Handle cloud sync initialization from login
   const handleCloudSyncReady = useCallback(async (accessToken, userId) => {
     try {
@@ -152,6 +164,17 @@ const App = () => {
               setShowUsageLimitModal(false);
               // Use window.location for App level navigation since it's outside Router context
               window.location.href = '/subscription';
+            }}
+          />
+
+          <PhoneVerificationModal
+            isOpen={showPhoneModal}
+            onClose={() => setShowPhoneModal(false)}
+            onVerified={() => {
+              setShowPhoneModal(false)
+              // refresh user data to reflect verification
+              const refreshed = userService.getCurrentUser()
+              setGoogleAuth((a) => ({ ...a, user: refreshed }))
             }}
           />
           
