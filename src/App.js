@@ -8,6 +8,7 @@ import ProductListScreen from "./pages/products/ProductListScreen";
 import InvoiceListScreen from "./pages/invoices/InvoiceListScreen";
 import InvoiceDetailScreen from "./pages/invoices/InvoiceDetailScreen";
 import AboutScreen from "./pages/about/AboutScreen";
+import LandingPage from "./pages/LandingPage";
 import LoginScreen from "./pages/LoginScreen";
 import PrivacyPolicy from "./pages/legal/PrivacyPolicy";
 import TermsOfService from "./pages/legal/TermsOfService";
@@ -133,6 +134,18 @@ const App = () => {
       {!googleAuth.token ? (
         <Routes>
           <Route
+            path="/"
+            element={
+              <LandingPage
+                onAuth={(user) => setGoogleAuth((a) => ({ ...a, user }))}
+                onToken={(token) => setGoogleAuth((a) => ({ ...a, token }))}
+                onCloudSyncReady={handleCloudSyncReady}
+              />
+            }
+          />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="/terms-of-service" element={<TermsOfService />} />
+          <Route
             path="/signin"
             element={
               <LoginScreen
@@ -142,7 +155,7 @@ const App = () => {
               />
             }
           />
-          <Route path="*" element={<Navigate to="/signin" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       ) : (
         <Container>
@@ -179,6 +192,7 @@ const App = () => {
           />
           
           <Routes>
+            <Route path="/" element={<Navigate to="/dashboards" replace />} />
             <Route path="/dashboards" element={<DashboardScreen />} />
             <Route path="clients" element={<ClientListScreen />} />
             <Route path="products" element={<ProductListScreen />} />

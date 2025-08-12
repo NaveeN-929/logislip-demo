@@ -21,7 +21,7 @@ import userService from './userService';
 
 // Cloud sync configuration
 const SYNC_CONFIG = {
-  APP_FOLDER_NAME: 'LogiSlip_Data',
+  APP_FOLDER_NAME: 'Logislip_Data',
   BACKUP_FILE_NAME: 'logislip_backup.json',
   METADATA_FILE_NAME: 'sync_metadata.json',
   AUTO_SYNC_INTERVAL: 5 * 60 * 1000, // 5 minutes

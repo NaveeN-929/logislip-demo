@@ -4,7 +4,7 @@ import invoiceLottie from "../lotties/invoice-navbar.json";
 import userService from "../services/userService";
 import secureLogger from '../utils/secureLogger';
 
-export default function LoginScreen({ onAuth, onToken, onCloudSyncReady }) {
+export default function LoginScreen({ onAuth, onToken, onCloudSyncReady, embedded = false }) {
   const [loading, setLoading] = React.useState(false);
   const [tokenClient, setTokenClient] = React.useState(null);
   const [error, setError] = React.useState(null);
@@ -134,20 +134,27 @@ export default function LoginScreen({ onAuth, onToken, onCloudSyncReady }) {
   };
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #e0e7ff 0%, #f0fdfa 100%)" }}>
+    <div style={{
+      minHeight: embedded ? "auto" : "100vh",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      background: embedded ? "transparent" : "linear-gradient(135deg, #e0e7ff 0%, #f0fdfa 100%)"
+    }}>
       <div style={{
         background: "#fff",
         borderRadius: 16,
-        boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+        boxShadow: embedded ? "none" : "0 8px 32px rgba(0,0,0,0.12)",
         padding: 40,
         minWidth: 320,
         display: "flex",
         flexDirection: "column",
         alignItems: "center"
       }}>
-        <div style={{ width: 180, height: 80, marginBottom: 16 }}>
+        {/* <div style={{ width: 180, height: 80, marginBottom: 16 }}>
           <Lottie animationData={invoiceLottie} loop={true} />
-        </div>
+        </div> */}
         <h1 style={{ fontWeight: 700, fontSize: 28, marginBottom: 8, color: "#2563eb", letterSpacing: 1 }}>Welcome to Logislip</h1>
         <p style={{ color: "#64748b", marginBottom: 24, textAlign: "center" }}>
           Sign in with your Google account to access your dashboard and upload invoices to Google Drive.
@@ -186,9 +193,11 @@ export default function LoginScreen({ onAuth, onToken, onCloudSyncReady }) {
         </button>
         {error && <div style={{ color: "#ef4444", marginTop: 8 }}>{error}</div>}
       </div>
-      <div style={{ marginTop: 32, color: "#64748b", fontSize: 14, textAlign: "center" }}>
-        <span>© {new Date().getFullYear()} Logislip. All rights reserved.</span>
-      </div>
+      {!embedded && (
+        <div style={{ marginTop: 32, color: "#64748b", fontSize: 14, textAlign: "center" }}>
+          <span>© {new Date().getFullYear()} Logislip. All rights reserved.</span>
+        </div>
+      )}
     </div>
   );
 }
