@@ -115,7 +115,10 @@ export default function LandingPage({ onAuth, onToken, onCloudSyncReady }) {
             <h2 className="text-center text-3xl sm:text-4xl font-semibold tracking-tight">
               Power for every part of invoicing
             </h2>
-            <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            <p className="mt-3 text-center text-gray-600 max-w-2xl mx-auto">
+              Create invoices, sync to Google Drive, share via Gmail or WhatsApp, and keep backups—fast and secure.
+            </p>
+            <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {[
                 { title: "Templates", desc: "Default, Modern, and Formal layouts built-in.", meta: "Pro+ get all templates" },
                 { title: "Drive export", desc: "Save PDFs directly to Google Drive.", meta: "Pro+" },
