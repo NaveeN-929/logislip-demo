@@ -133,7 +133,16 @@ const App = () => {
       {/* Only wrap authenticated routes in Container, so Navbar/Sidebar/toggle always work */}
       {!googleAuth.token ? (
         <Routes>
-          <Route path="/" element={<LandingPage />} />
+          <Route
+            path="/"
+            element={
+              <LandingPage
+                onAuth={(user) => setGoogleAuth((a) => ({ ...a, user }))}
+                onToken={(token) => setGoogleAuth((a) => ({ ...a, token }))}
+                onCloudSyncReady={handleCloudSyncReady}
+              />
+            }
+          />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/terms-of-service" element={<TermsOfService />} />
           <Route

@@ -5,8 +5,10 @@ import LottieInvoice from "../components/LotiIcon/LottieInvoice";
 import LottiePersons from "../components/LotiIcon/LottiePersons";
 import LottieProduct from "../components/LotiIcon/LottieProduct";
 import LottieMoney from "../components/LotiIcon/LottieMoney";
+import LoginScreen from "./LoginScreen";
 
-export default function LandingPage() {
+export default function LandingPage({ onAuth, onToken, onCloudSyncReady }) {
+  const [showLogin, setShowLogin] = useState(false)
   return (
     <div className="min-h-screen bg-white text-gray-900">
       <header className="sticky top-0 z-30 w-full backdrop-blur supports-[backdrop-filter]:bg-white/70 bg-white/80 border-b border-gray-99">
@@ -21,18 +23,18 @@ export default function LandingPage() {
             <a href="#faq" className="text-gray-600 hover:text-gray-900">FAQ</a>
           </nav>
           <div className="flex items-center gap-3">
-            <Link
-              to="/signin"
+            <button
+              onClick={() => setShowLogin(true)}
               className="hidden sm:inline-flex items-center rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
             >
               Sign in
-            </Link>
-            <Link
-              to="/signin"
+            </button>
+            <button
+              onClick={() => setShowLogin(true)}
               className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               Start free
-            </Link>
+            </button>
           </div>
         </div>
       </header>
@@ -56,13 +58,13 @@ export default function LandingPage() {
                   Take invoicing to the next level. Experience unmatched speed, security, and reliability with Edge Computing.
                 </p>
                 <div className="mt-8 flex flex-col sm:flex-row gap-3">
-                  <Link
-                    to="/signin"
+                  <button
+                    onClick={() => setShowLogin(true)}
                     aria-label="Start free with Logislip"
                     className="inline-flex items-center justify-center rounded-full bg-[#0066FF] px-7 py-3.5 text-base font-semibold text-white shadow-lg hover:bg-[#0a5ae6] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-black transition"
                   >
                     Start free
-                  </Link>
+                  </button>
                 </div>
 
               </motion.div>
@@ -210,9 +212,21 @@ export default function LandingPage() {
             <h2 className="text-center text-2xl sm:text-3xl font-semibold tracking-tight">FAQ</h2>
             <div className="mt-8 divide-y divide-gray-200 border border-gray-200 rounded-2xl overflow-hidden">
               {[
-                { q: "Is there a free plan?", a: "Yes. Free includes 3 invoices save & export, 1 client and 1 product." },
-                { q: "What does Pro include?", a: "Drive export, Gmail send, all templates, and auto‑sync every 30 minutes." },
-                { q: "What does Business include?", a: "Everything in Pro plus custom templates, priority support, and 5‑minute auto‑sync." },
+                {
+                  q: "How do backups and Google Drive sync work?",
+                  a:
+                    "You can export/import full backups anytime. With Pro and Business plans, invoices can auto‑sync to your Google Drive (every 30–5 minutes depending on plan). We use your own Google account—tokens are stored locally and can be revoked at any time.",
+                },
+                {
+                  q: "Can I share invoices directly?",
+                  a:
+                    "Yes. Send invoices with a PDF attachment via Gmail, share a Drive link after export, or send details over WhatsApp in one tap. Email attachments require viewing an invoice to generate a PDF.",
+                },
+                {
+                  q: "Is there a free trial? What happens after?",
+                  a:
+                    "Start on the Free plan—no credit card required. Upgrade anytime to Pro for Drive export and Gmail send, or to Business for faster auto‑sync and advanced options. You can cancel anytime; your data remains available for export.",
+                },
               ].map((item) => (
                 <details key={item.q} className="group p-6 open:bg-gray-50">
                   <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-medium text-gray-900">
@@ -226,6 +240,18 @@ export default function LandingPage() {
           </div>
         </section>
       </main>
+
+      {/* Login modal */}
+      {showLogin && (
+        <div className="fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowLogin(false)} />
+          <div className="relative z-10 flex items-center justify-center min-h-screen p-4">
+            <div className="w-full max-w-md">
+              <EmbeddedLogin onClose={() => setShowLogin(false)} onAuth={onAuth} onToken={onToken} onCloudSyncReady={onCloudSyncReady} />
+            </div>
+          </div>
+        </div>
+      )}
 
       <footer className="bg-white border-t border-gray-100">
         <div className="mx-auto max-w-7xl px-6 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -344,6 +370,19 @@ function TemplatesCarousel() {
           )
         })}
       </div>
+    </div>
+  )
+}
+
+function EmbeddedLogin({ onClose, onAuth, onToken, onCloudSyncReady }) {
+  return (
+    <div>
+      <div className="flex justify-end">
+        <button onClick={onClose} className="p-1 text-gray-500 hover:text-gray-700" aria-label="Close login">
+          ✕
+        </button>
+      </div>
+      <LoginScreen embedded onAuth={onAuth} onToken={onToken} onCloudSyncReady={onCloudSyncReady} />
     </div>
   )
 }
