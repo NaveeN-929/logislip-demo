@@ -289,7 +289,7 @@ export async function checkGmailAccess({ accessToken }) {
  * @returns {Object} Formatted email data
  */
 export function formatInvoiceEmail(invoice, user) {
-  const subject = `Invoice ${invoice.invoiceNo} from ${user?.name || 'LogiSlip'}`;
+  const subject = `Invoice ${invoice.invoiceNo} from ${user?.name || 'Logislip'}`;
   
   const plainBody = `Invoice: ${invoice.invoiceNo}
 Client: ${invoice.clientDetail?.name || invoice.clientName || 'Valued Customer'}
@@ -299,7 +299,7 @@ Status: ${invoice.statusName}
 View invoice details at: ${window.location.origin}/invoices/${invoice.id}
 
 Best regards,
-${user?.name || 'LogiSlip Team'}`;
+${user?.name || 'Logislip Team'}`;
 
   const htmlBody = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -334,7 +334,7 @@ ${user?.name || 'LogiSlip Team'}`;
       
       <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; color: #666;">
         <p>Best regards,<br>
-        <strong>${user?.name || 'LogiSlip Team'}</strong></p>
+        <strong>${user?.name || 'Logislip Team'}</strong></p>
       </div>
     </div>
   `;
@@ -353,10 +353,10 @@ ${user?.name || 'LogiSlip Team'}`;
  * @returns {Object} Formatted email data
  */
 export function formatInvoiceEmailWithAttachment(invoice, user) {
-  const subject = `Invoice ${invoice.invoiceNo} from ${user?.name || 'LogiSlip'}`;
+  const subject = `Invoice ${invoice.invoiceNo} from ${user?.name || 'Logislip'}`;
   
   const dueDate = invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : 'Upon receipt';
-  const companyName = invoice?.companyDetail?.companyName || user?.company || 'LogiSlip';
+  const companyName = invoice?.companyDetail?.companyName || user?.company || 'Logislip';
   
   const plainBody = `Dear ${invoice.clientDetail?.name || invoice.clientName || 'Valued Customer'},
 
@@ -376,11 +376,11 @@ Payment can be made according to the terms specified in the invoice. We apprecia
 Thank you for your business and continued partnership.
 
 Best regards,
-${user?.name || 'LogiSlip Team'}
+${user?.name || 'Logislip Team'}
 ${companyName}
 
 ---
-This email was sent via LogiSlip Invoice Management System`;
+This email was sent via Logislip Invoice Management System`;
 
   const htmlBody = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
@@ -439,8 +439,8 @@ This email was sent via LogiSlip Invoice Management System`;
       <!-- Footer -->
       <div style="padding: 20px; background-color: #2c3e50; color: white; text-align: center;">
         <p style="margin: 0 0 10px 0;">Thank you for your business and continued partnership.</p>
-        <p style="margin: 0 0 10px 0;"><strong>${user?.name || 'LogiSlip Team'}</strong><br>${companyName}</p>
-        <p style="margin: 0; font-size: 12px; color: #bdc3c7;">This email was sent via LogiSlip Invoice Management System</p>
+        <p style="margin: 0 0 10px 0;"><strong>${user?.name || 'Logislip Team'}</strong><br>${companyName}</p>
+        <p style="margin: 0; font-size: 12px; color: #bdc3c7;">This email was sent via Logislip Invoice Management System</p>
       </div>
     </div>
   `;

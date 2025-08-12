@@ -54,29 +54,7 @@ function AboutScreen() {
             </a>
           </div>
 
-          <PageTitle title="Legal" />
-          <div className="mt-2 mb-5 pl-4 text-sm">
-            <ul className="list-disc space-y-2">
-              <li>
-                <Link 
-                  to="/privacy-policy" 
-                  className="text-blue-600 hover:text-blue-800 underline"
-                >
-                  Privacy Policy
-                </Link>
-                {" - "} Learn how we protect your data and privacy
-              </li>
-              <li>
-                <Link 
-                  to="/terms-of-service" 
-                  className="text-blue-600 hover:text-blue-800 underline"
-                >
-                  Terms of Service
-                </Link>
-                {" - "} Read our terms and conditions for using LogiSlip
-              </li>
-            </ul>
-          </div>
+          {/* Legal links moved to the footer and landing page; removing from About for simplicity */}
 
         </div>
       </div>

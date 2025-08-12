@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
 
     // Common OTP for all users
     const COMMON_OTP = Deno.env.get('COMMON_OTP') || '765265'
-    const message = `Your LogiSlip verification code is ${COMMON_OTP}`
+    const message = `Your Logislip verification code is ${COMMON_OTP}`
 
     // Try SMS first; if it fails, try WhatsApp (if configured)
     const smsResult = await sendSmsTwilio(sanitizedPhone, message)
