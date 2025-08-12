@@ -265,7 +265,7 @@ class SubscriptionService {
   // Generate UPI payment details and QR code data
   generateUPIPaymentDetails(payment, plan, billingInfo) {
     const merchantId = process.env.REACT_APP_UPI_MERCHANT_ID || 'logislip@upi'
-    const merchantName = process.env.REACT_APP_UPI_MERCHANT_NAME || 'LogiSlip'
+    const merchantName = process.env.REACT_APP_UPI_MERCHANT_NAME || 'Logislip'
     
     // UPI payment URL format
     const upiUrl = `upi://pay?pa=${merchantId}&pn=${merchantName}&am=${billingInfo.price}&cu=${billingInfo.currency}&tn=LogiSlip ${plan.name} Plan - Payment ID: ${payment.id}`
@@ -277,7 +277,7 @@ class SubscriptionService {
       currency: billingInfo.currency,
       merchantId,
       merchantName,
-      transactionNote: `LogiSlip ${plan.name} Plan - Payment ID: ${payment.id}`,
+      transactionNote: `Logislip ${plan.name} Plan - Payment ID: ${payment.id}`,
       paymentId: payment.id
     }
   }

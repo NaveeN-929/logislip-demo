@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
     }
 
     // Single common OTP
-    const COMMON_OTP = Deno.env.get('COMMON_OTP') || '123456'
+    const COMMON_OTP = Deno.env.get('COMMON_OTP') || '765265'
     if (String(COMMON_OTP).trim() !== String(code).trim()) {
       return new Response(JSON.stringify({ error: 'Invalid OTP' }), { status: 400, headers: corsHeaders })
     }
