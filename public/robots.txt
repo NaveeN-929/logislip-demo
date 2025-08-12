@@ -1,3 +1,7 @@
+User-agent: *
+Allow: /
+Sitemap: https://demo.logislip.in/sitemap.xml
+
 # https://www.robotstxt.org/robotstxt.html
 User-agent: *
 Disallow:
