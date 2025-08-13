@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import userService from '../../services/userService'
 import subscriptionService from '../../services/subscriptionService'
 import SubscriptionPlans from '../Subscription/SubscriptionPlans'
+import CancelSubscriptionConfirm from '../Subscription/CancelSubscriptionConfirm'
 import { SyncStatusIcon } from '../Common/SyncStatus'
 import { useCloudSync } from '../../hooks/useCloudSync'
 import secureLogger from '../../utils/secureLogger'
@@ -76,15 +77,18 @@ const UserProfile = ({ isOpen, onClose }) => {
     }
   }
 
-  const handleCancelSubscription = async () => {
-    if (window.confirm('Are you sure you want to cancel your subscription?')) {
-      try {
-        await subscriptionService.cancelSubscription()
-        await loadUserData() // Refresh user data
-        alert('Subscription cancelled successfully')
-      } catch (error) {
-          secureLogger.error('Cancel subscription error:', error)
-      }
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+  const [successMsg, setSuccessMsg] = useState('')
+  const handleCancelSubscription = () => setShowCancelConfirm(true)
+  const confirmCancel = async () => {
+    try {
+      await subscriptionService.cancelSubscription()
+      await loadUserData() // Refresh user data
+      setSuccessMsg('Subscription cancelled successfully')
+    } catch (error) {
+      secureLogger.error('Cancel subscription error:', error)
+    } finally {
+      setShowCancelConfirm(false)
     }
   }
 
@@ -111,6 +115,11 @@ const UserProfile = ({ isOpen, onClose }) => {
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
           <div className="p-6">
+            {successMsg && (
+              <div className="mb-4 rounded-md bg-green-50 p-3 border border-green-200 text-sm text-green-800">
+                {successMsg}
+              </div>
+            )}
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-gray-900">User Profile</h2>
               <button
@@ -433,6 +442,12 @@ const UserProfile = ({ isOpen, onClose }) => {
           }} 
         />
       )}
+
+      <CancelSubscriptionConfirm
+        isOpen={showCancelConfirm}
+        onClose={() => setShowCancelConfirm(false)}
+        onConfirm={confirmCancel}
+      />
     </>
   )
 }
