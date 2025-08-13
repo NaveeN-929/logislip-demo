@@ -8,6 +8,7 @@ const SubscriptionPlans = ({ onClose }) => {
   const [selectedPlan, setSelectedPlan] = useState(null)
   const [selectedBilling, setSelectedBilling] = useState({}) // Track billing cycle for each plan
   const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [successMsg, setSuccessMsg] = useState('')
   const [paymentPlan, setPaymentPlan] = useState({ planId: null, billingCycle: null })
   const plans = subscriptionService.getSubscriptionPlans()
   const currentSubscription = subscriptionService.getCurrentSubscription()
@@ -34,11 +35,13 @@ const SubscriptionPlans = ({ onClose }) => {
   }
 
   const handlePaymentSuccess = (result) => {
-    // Show success message
     const plan = plans[result.plan.id]
-    alert(`Successfully upgraded to ${plan.name} plan!`)
+    setSuccessMsg(`Successfully upgraded to ${plan.name} plan`)
     setShowPaymentModal(false)
-    onClose && onClose()
+    // Close the plans modal shortly after showing the message
+    setTimeout(() => {
+      onClose && onClose()
+    }, 1500)
   }
 
   const handlePaymentModalClose = () => {
@@ -68,6 +71,14 @@ const SubscriptionPlans = ({ onClose }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6">
+          {successMsg && (
+            <div className="mb-4 rounded-md bg-green-50 p-4 border border-green-200 flex items-start">
+              <svg className="h-5 w-5 text-green-600 mt-0.5 mr-2 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+              <div className="text-sm text-green-800">{successMsg}</div>
+            </div>
+          )}
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold text-gray-900">Choose Your Plan</h2>
             <button

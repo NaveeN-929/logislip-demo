@@ -1,13 +1,16 @@
 import React, { useState } from 'react'
 import subscriptionService from '../../services/subscriptionService'
 import UPIPaymentModal from '../../components/Subscription/UPIPaymentModal'
+import CancelSubscriptionConfirm from '../../components/Subscription/CancelSubscriptionConfirm'
 
 const SubscriptionScreen = () => {
   const [loading, setLoading] = useState(false)
   const [selectedPlan, setSelectedPlan] = useState(null)
   const [selectedBilling, setSelectedBilling] = useState({}) // Track billing cycle for each plan
   const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [successMsg, setSuccessMsg] = useState('')
   const [paymentPlan, setPaymentPlan] = useState({ planId: null, billingCycle: null })
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const plans = subscriptionService.getSubscriptionPlans()
   const currentSubscription = subscriptionService.getCurrentSubscription()
 
@@ -36,17 +39,15 @@ const SubscriptionScreen = () => {
   }
 
   const handlePaymentSuccess = (result) => {
-    // Show success message
     const plan = plans[result.plan.id]
-    alert(`Successfully upgraded to ${plan.name} plan!`)
+    setSuccessMsg(`Successfully upgraded to ${plan.name} plan`)
     setShowPaymentModal(false)
     setLoading(false)
     setSelectedPlan(null)
-    
-    // Refresh the page to show updated subscription
+    // Refresh to reflect new limits after a brief success banner
     setTimeout(() => {
       window.location.reload()
-    }, 1500)
+    }, 1200)
   }
 
   const handlePaymentModalClose = () => {
@@ -74,18 +75,18 @@ const SubscriptionScreen = () => {
     }).format(price)
   }
 
-  const handleCancelSubscription = async () => {
-    if (window.confirm('Are you sure you want to cancel your subscription?')) {
-      try {
-        setLoading(true)
-        await subscriptionService.cancelSubscription()
-        alert('Subscription cancelled successfully')
-        window.location.reload()
-      } catch (error) {
-        alert('Failed to cancel subscription. Please try again.')
-      } finally {
-        setLoading(false)
-      }
+  const handleCancelSubscription = () => setShowCancelConfirm(true)
+  const confirmCancel = async () => {
+    try {
+      setLoading(true)
+      await subscriptionService.cancelSubscription()
+      setSuccessMsg('Subscription cancelled successfully')
+      setShowCancelConfirm(false)
+      setTimeout(() => window.location.reload(), 1000)
+    } catch (error) {
+      setSuccessMsg('Failed to cancel subscription. Please try again.')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -100,6 +101,16 @@ const SubscriptionScreen = () => {
             All plans include secure data storage and seamless Google Drive integration.
           </p>
         </div>
+
+        {/* Success Banner */}
+        {successMsg && (
+          <div className="bg-green-50 border border-green-200 text-green-800 rounded-lg p-4 mb-6 flex items-start">
+            <svg className="h-5 w-5 text-green-600 mt-0.5 mr-2 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+            <div className="text-sm">{successMsg}</div>
+          </div>
+        )}
 
         {/* Current Subscription Status */}
         {currentSubscription && (
@@ -294,6 +305,13 @@ const SubscriptionScreen = () => {
         planId={paymentPlan.planId}
         billingCycle={paymentPlan.billingCycle}
         onPaymentSuccess={handlePaymentSuccess}
+      />
+
+      <CancelSubscriptionConfirm
+        isOpen={showCancelConfirm}
+        onClose={() => setShowCancelConfirm(false)}
+        onConfirm={confirmCancel}
+        loading={loading}
       />
     </div>
   )
