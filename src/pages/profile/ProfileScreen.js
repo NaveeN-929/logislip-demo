@@ -7,6 +7,7 @@ import { useCloudSync } from '../../hooks/useCloudSync'
 import secureLogger from '../../utils/secureLogger'
 import PhoneVerificationModal from '../../components/Auth/PhoneVerificationModal'
 import otpService from '../../services/otpService'
+import CancelSubscriptionConfirm from '../../components/Subscription/CancelSubscriptionConfirm'
 
 const ProfileScreen = () => {
   const navigate = useNavigate()
@@ -16,6 +17,8 @@ const ProfileScreen = () => {
   const [regeneratingAvatar, setRegeneratingAvatar] = useState(false)
   const [importFile, setImportFile] = useState(null)
   const [showPhoneModal, setShowPhoneModal] = useState(false)
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+  const [successMsg, setSuccessMsg] = useState('')
   const { syncStatus, syncHistory, forceSync, exportBackup, importBackup, toggleAutoSync } = useCloudSync()
   
   // Safety check for syncStatus
@@ -81,15 +84,16 @@ const ProfileScreen = () => {
     }
   }
 
-  const handleCancelSubscription = async () => {
-    if (window.confirm('Are you sure you want to cancel your subscription?')) {
-      try {
-        await subscriptionService.cancelSubscription()
-        await loadUserData() // Refresh user data
-        alert('Subscription cancelled successfully')
-      } catch (error) {
-        secureLogger.error('Cancel subscription error:', error)
-      }
+  const handleCancelSubscription = () => setShowCancelConfirm(true)
+  const confirmCancel = async () => {
+    try {
+      await subscriptionService.cancelSubscription()
+      await loadUserData() // Refresh user data
+      setSuccessMsg('Subscription cancelled successfully')
+    } catch (error) {
+      secureLogger.error('Cancel subscription error:', error)
+    } finally {
+      setShowCancelConfirm(false)
     }
   }
 
@@ -141,6 +145,11 @@ const ProfileScreen = () => {
   return (
     <div className="p-4">
       <div className="max-w-4xl mx-auto space-y-6">
+        {successMsg && (
+          <div className="bg-green-50 border border-green-200 text-green-800 rounded-lg p-4">
+            <div className="text-sm">{successMsg}</div>
+          </div>
+        )}
         {/* User Info Card */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="bg-gradient-to-r from-blue-500 to-purple-600 px-6 py-8">
@@ -418,6 +427,12 @@ const ProfileScreen = () => {
             const refreshed = userService.getCurrentUser()
             setUser({ ...refreshed })
           }}
+        />
+
+        <CancelSubscriptionConfirm
+          isOpen={showCancelConfirm}
+          onClose={() => setShowCancelConfirm(false)}
+          onConfirm={confirmCancel}
         />
       </div>
     </div>

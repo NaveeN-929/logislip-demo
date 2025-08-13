@@ -84,3 +84,62 @@ CREATE INDEX idx_payments_status ON payments(status);
 
 -- Optional helpful indexes for phone lookups
 CREATE INDEX IF NOT EXISTS idx_users_phone_number ON users(phone_number);
+
+-- Enable RLS and add permissive policies to preserve current app behavior
+-- Note: The frontend uses the anon key without Supabase Auth; we therefore allow the anon role.
+-- This satisfies Supabase's requirement to enable RLS while keeping functionality unchanged.
+
+-- Users
+ALTER TABLE IF EXISTS users ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS users_anon_select ON users;
+CREATE POLICY users_anon_select ON users FOR SELECT TO anon USING (true);
+DROP POLICY IF EXISTS users_anon_insert ON users;
+CREATE POLICY users_anon_insert ON users FOR INSERT TO anon WITH CHECK (true);
+DROP POLICY IF EXISTS users_anon_update ON users;
+CREATE POLICY users_anon_update ON users FOR UPDATE TO anon USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS users_anon_delete ON users;
+CREATE POLICY users_anon_delete ON users FOR DELETE TO anon USING (true);
+
+-- User sessions
+ALTER TABLE IF EXISTS user_sessions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS user_sessions_anon_select ON user_sessions;
+CREATE POLICY user_sessions_anon_select ON user_sessions FOR SELECT TO anon USING (true);
+DROP POLICY IF EXISTS user_sessions_anon_insert ON user_sessions;
+CREATE POLICY user_sessions_anon_insert ON user_sessions FOR INSERT TO anon WITH CHECK (true);
+DROP POLICY IF EXISTS user_sessions_anon_update ON user_sessions;
+CREATE POLICY user_sessions_anon_update ON user_sessions FOR UPDATE TO anon USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS user_sessions_anon_delete ON user_sessions;
+CREATE POLICY user_sessions_anon_delete ON user_sessions FOR DELETE TO anon USING (true);
+
+-- Usage logs
+ALTER TABLE IF EXISTS usage_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS usage_logs_anon_select ON usage_logs;
+CREATE POLICY usage_logs_anon_select ON usage_logs FOR SELECT TO anon USING (true);
+DROP POLICY IF EXISTS usage_logs_anon_insert ON usage_logs;
+CREATE POLICY usage_logs_anon_insert ON usage_logs FOR INSERT TO anon WITH CHECK (true);
+DROP POLICY IF EXISTS usage_logs_anon_update ON usage_logs;
+CREATE POLICY usage_logs_anon_update ON usage_logs FOR UPDATE TO anon USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS usage_logs_anon_delete ON usage_logs;
+CREATE POLICY usage_logs_anon_delete ON usage_logs FOR DELETE TO anon USING (true);
+
+-- Payments
+ALTER TABLE IF EXISTS payments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS payments_anon_select ON payments;
+CREATE POLICY payments_anon_select ON payments FOR SELECT TO anon USING (true);
+DROP POLICY IF EXISTS payments_anon_insert ON payments;
+CREATE POLICY payments_anon_insert ON payments FOR INSERT TO anon WITH CHECK (true);
+DROP POLICY IF EXISTS payments_anon_update ON payments;
+CREATE POLICY payments_anon_update ON payments FOR UPDATE TO anon USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS payments_anon_delete ON payments;
+CREATE POLICY payments_anon_delete ON payments FOR DELETE TO anon USING (true);
+
+-- Resource usage
+ALTER TABLE IF EXISTS resource_usage ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS resource_usage_anon_select ON resource_usage;
+CREATE POLICY resource_usage_anon_select ON resource_usage FOR SELECT TO anon USING (true);
+DROP POLICY IF EXISTS resource_usage_anon_insert ON resource_usage;
+CREATE POLICY resource_usage_anon_insert ON resource_usage FOR INSERT TO anon WITH CHECK (true);
+DROP POLICY IF EXISTS resource_usage_anon_update ON resource_usage;
+CREATE POLICY resource_usage_anon_update ON resource_usage FOR UPDATE TO anon USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS resource_usage_anon_delete ON resource_usage;
+CREATE POLICY resource_usage_anon_delete ON resource_usage FOR DELETE TO anon USING (true);

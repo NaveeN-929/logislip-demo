@@ -186,12 +186,12 @@ export default function LandingPage({ onAuth, onToken, onCloudSyncReady }) {
                   <li>Default template</li>
                   <li>Manual sync</li>
                 </ul>
-                <Link
-                  to="/signin"
+                <button
+                  onClick={() => setShowLogin(true)}
                   className="mt-6 inline-flex w-full items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
                 >
                   Get started
-                </Link>
+                </button>
               </motion.div>
             </div>
           </div>

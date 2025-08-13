@@ -35,7 +35,7 @@ const PhoneVerificationModal = ({ isOpen, onClose, onVerified }) => {
 
       // Optimistically store phone on user (unverified)
       await userService.updateUserProfile({ phone_number: phoneNumber, phone_verified: false })
-      if (result?.otp) setLastOtp(String(result.otp))
+      // No longer expose OTP in UI for security
       setStep('verify')
     } catch (err) {
       setError(err.message || 'Failed to send code')
@@ -109,11 +109,7 @@ const PhoneVerificationModal = ({ isOpen, onClose, onVerified }) => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 tracking-widest"
               />
               <p className="mt-2 text-xs text-gray-500">Code sent to {phoneNumber}. <button type="button" className="text-blue-600" onClick={() => setStep('collect')}>Change</button></p>
-              {lastOtp && (
-                <div className="mt-2 text-xs text-gray-700 bg-yellow-50 border border-yellow-200 rounded px-2 py-1">
-                  For testing: Your OTP is <span className="font-semibold">{lastOtp}</span>
-                </div>
-              )}
+              {/* testing OTP banner removed */}
             </div>
             <div className="flex items-center justify-between">
               <button type="button" className="text-sm text-gray-600" onClick={handleSendCode} disabled={submitting}>Resend code</button>
