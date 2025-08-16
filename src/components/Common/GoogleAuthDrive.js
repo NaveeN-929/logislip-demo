@@ -3,9 +3,10 @@ import cloudSyncService from "../../services/cloudSyncService";
 
 // Google OAuth Client ID from environment variables
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
+const OIDC_SCOPES = "openid email profile";
 const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.send";
-const COMBINED_SCOPE = `${GOOGLE_DRIVE_SCOPE} ${GMAIL_SCOPE}`;
+const COMBINED_SCOPE = `${OIDC_SCOPES} ${GOOGLE_DRIVE_SCOPE} ${GMAIL_SCOPE}`;
 
 function loadGoogleScript(cb) {
   const id = "google-oauth2-js";
