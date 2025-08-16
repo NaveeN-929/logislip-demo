@@ -129,7 +129,9 @@ export default function LoginScreen({ onAuth, onToken, onCloudSyncReady, embedde
     }
     setLoading(true);
     setError(null);
-    tokenClient.requestAccessToken();
+    // Force Google to show the full consent/permission screen for new users
+    // and when scopes change, per GIS docs
+    tokenClient.requestAccessToken({ prompt: 'consent' });
     setLoading(false);
   };
 
