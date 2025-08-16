@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+// Standalone legal pages are routed separately; do not import here
 import { motion } from "framer-motion";
 import LottieInvoice from "../components/LotiIcon/LottieInvoice";
 import LottiePersons from "../components/LotiIcon/LottiePersons";
@@ -244,6 +245,8 @@ export default function LandingPage({ onAuth, onToken, onCloudSyncReady }) {
         </section>
       </main>
 
+      {/* Legal sections removed; links open standalone pages */}
+
       {/* Login modal */}
       {showLogin && (
         <div className="fixed inset-0 z-50">
@@ -389,3 +392,5 @@ function EmbeddedLogin({ onClose, onAuth, onToken, onCloudSyncReady }) {
     </div>
   )
 }
+
+// Removed embedded legal sections
