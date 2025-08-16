@@ -21,7 +21,8 @@ export default function LoginScreen({ onAuth, onToken, onCloudSyncReady, embedde
             if (!tokenClient && isMounted) {
               const client = window.google.accounts.oauth2.initTokenClient({
                 client_id: process.env.REACT_APP_GOOGLE_CLIENT_ID,
-                scope: "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/gmail.send",
+                // Include OIDC scopes so userinfo endpoint is authorized
+                scope: "openid email profile https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/gmail.send",
                 callback: async (resp) => {
                   if (resp.error) {
                     setError("Google Sign-In failed: " + resp.error);
@@ -71,7 +72,8 @@ export default function LoginScreen({ onAuth, onToken, onCloudSyncReady, embedde
       if (!tokenClient && isMounted) {
         const client = window.google.accounts.oauth2.initTokenClient({
           client_id: process.env.REACT_APP_GOOGLE_CLIENT_ID,
-          scope: "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/gmail.send",
+          // Include OIDC scopes so userinfo endpoint is authorized
+          scope: "openid email profile https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/gmail.send",
           callback: async (resp) => {
             if (resp.error) {
               setError("Google Sign-In failed: " + resp.error);
