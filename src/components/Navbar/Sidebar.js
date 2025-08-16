@@ -227,33 +227,7 @@ function Sidebar() {
 
             <hr />
 
-            <div className="my-4">
-              <NavLink to={"about"}>
-                <motion.span
-                  className="block px-4 py-2 rounded-md flex text-default-color"
-                  style={{
-                    color: aboutRoute ? "rgb(14 136 14)" : "#777",
-                  }}
-                  whileHover={{
-                    scale: [1.03, 1, 1.03, 1, 1.03, 1, 1.03, 1],
-                    color: "rgb(14 136 14)",
-                    textShadow: "0px 0px 3px #85FF66",
-                    transition: {
-                      backgroundColor: {
-                        type: "spring",
-                        damping: 18,
-                      },
-                    },
-                  }}
-                  whileTap={{ scale: 0.9 }}
-                >
-                  <SecurityIcon className="h-6 w-6 mr-4" />
-                  About Me
-                </motion.span>
-              </NavLink>
-            </div>
-
-            <hr />
+            
           </div>
           <div className="mb-4 flex flex-col items-center">
             <motion.button

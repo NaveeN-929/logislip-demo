@@ -99,7 +99,8 @@ export default function GoogleAuthDrive({ onAuth, onSignOut, onToken, onCloudSyn
     }
     setLoading(true);
     setError(null);
-    tokenClient.requestAccessToken();
+    // Ensure the Google consent screen is shown when needed
+    tokenClient.requestAccessToken({ prompt: 'consent' });
     setLoading(false);
   };
 

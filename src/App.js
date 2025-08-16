@@ -7,7 +7,6 @@ import ClientListScreen from "./pages/clients/ClientListScreen";
 import ProductListScreen from "./pages/products/ProductListScreen";
 import InvoiceListScreen from "./pages/invoices/InvoiceListScreen";
 import InvoiceDetailScreen from "./pages/invoices/InvoiceDetailScreen";
-import AboutScreen from "./pages/about/AboutScreen";
 import LandingPage from "./pages/LandingPage";
 import LoginScreen from "./pages/LoginScreen";
 import PrivacyPolicy from "./pages/legal/PrivacyPolicy";
@@ -130,6 +129,12 @@ const App = () => {
         v7_relativeSplatPath: true,
       }}
     >
+      {/* Always-public legal pages (render outside app container, regardless of auth) */}
+      <Routes>
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/terms-of-service" element={<TermsOfService />} />
+      </Routes>
+
       {/* Only wrap authenticated routes in Container, so Navbar/Sidebar/toggle always work */}
       {!googleAuth.token ? (
         <Routes>
@@ -143,8 +148,6 @@ const App = () => {
               />
             }
           />
-          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-          <Route path="/terms-of-service" element={<TermsOfService />} />
           <Route
             path="/signin"
             element={
@@ -200,11 +203,9 @@ const App = () => {
               <Route path="" element={<InvoiceListScreen />} exact />
               <Route path=":id" element={<InvoiceDetailScreen />} />
             </Route>
-            <Route path="about" element={<AboutScreen />} />
+            
             <Route path="profile" element={<ProfileScreen />} />
             <Route path="subscription" element={<SubscriptionScreen />} />
-            <Route path="privacy-policy" element={<PrivacyPolicy />} />
-            <Route path="terms-of-service" element={<TermsOfService />} />
             <Route path="*" element={<Navigate to="/dashboards" replace />} />
           </Routes>
         </Container>
