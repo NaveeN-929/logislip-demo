@@ -405,7 +405,7 @@ function ModernTemplate({
                   <span className="font-medium">A/c Name:</span> {!isViewMode ? (
                     <input
                       autoComplete="nope"
-                      placeholder="FRIENDS CARRIER"
+                      placeholder="Account Name"
                       className="border-none p-0 text-sm focus:outline-none bg-transparent ml-1"
                       value={invoiceForm?.companyDetail?.accountName || ""}
                       onChange={(e) => setInvoiceForm(prev => ({ ...prev, companyDetail: { ...prev.companyDetail, accountName: e.target.value } }))}
@@ -420,7 +420,7 @@ function ModernTemplate({
                   <span className="font-medium">A/c Number:</span> {!isViewMode ? (
                     <input
                       autoComplete="nope"
-                      placeholder="454701010036373"
+                      placeholder="Account Number"
                       className="border-none p-0 text-sm focus:outline-none bg-transparent ml-1"
                       value={invoiceForm?.companyDetail?.accountNumber || ""}
                       onChange={(e) => setInvoiceForm(prev => ({ ...prev, companyDetail: { ...prev.companyDetail, accountNumber: e.target.value } }))}
@@ -435,7 +435,7 @@ function ModernTemplate({
                   <span className="font-medium">Bank Name:</span> {!isViewMode ? (
                     <input
                       autoComplete="nope"
-                      placeholder="UNION BANK OF INDIA"
+                      placeholder="Bank Name"
                       className="border-none p-0 text-sm focus:outline-none bg-transparent ml-1"
                       value={invoiceForm?.companyDetail?.bankName || ""}
                       onChange={(e) => setInvoiceForm(prev => ({ ...prev, companyDetail: { ...prev.companyDetail, bankName: e.target.value } }))}
@@ -445,18 +445,25 @@ function ModernTemplate({
                   )}
                 </div>
               )}
-              {(invoiceForm?.companyDetail?.branch || !isViewMode) && (
+              {(invoiceForm?.companyDetail?.branchName || invoiceForm?.companyDetail?.branch || !isViewMode) && (
                 <div>
                   <span className="font-medium">Branch:</span> {!isViewMode ? (
                     <input
                       autoComplete="nope"
-                      placeholder="Vijanapura Branch"
+                      placeholder="Branch"
                       className="border-none p-0 text-sm focus:outline-none bg-transparent ml-1"
-                      value={invoiceForm?.companyDetail?.branch || ""}
-                      onChange={(e) => setInvoiceForm(prev => ({ ...prev, companyDetail: { ...prev.companyDetail, branch: e.target.value } }))}
+                      value={invoiceForm?.companyDetail?.branchName || invoiceForm?.companyDetail?.branch || ""}
+                      onChange={(e) => setInvoiceForm(prev => ({ 
+                        ...prev, 
+                        companyDetail: { 
+                          ...prev.companyDetail, 
+                          branchName: e.target.value,
+                          branch: e.target.value 
+                        } 
+                      }))}
                     />
                   ) : (
-                    invoiceForm?.companyDetail?.branch
+                    invoiceForm?.companyDetail?.branchName || invoiceForm?.companyDetail?.branch
                   )}
                 </div>
               )}
@@ -465,7 +472,7 @@ function ModernTemplate({
                   <span className="font-medium">IFSC Code:</span> {!isViewMode ? (
                     <input
                       autoComplete="nope"
-                      placeholder="UBIN0545473"
+                      placeholder="IFSC Code"
                       className="border-none p-0 text-sm focus:outline-none bg-transparent ml-1"
                       value={invoiceForm?.companyDetail?.ifscCode || ""}
                       onChange={(e) => setInvoiceForm(prev => ({ ...prev, companyDetail: { ...prev.companyDetail, ifscCode: e.target.value } }))}
