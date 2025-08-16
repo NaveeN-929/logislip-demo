@@ -424,6 +424,9 @@ function FormalTemplate({
               <div className="text-xs font-bold mb-2">Bank Details:</div>
               <div className="text-xs space-y-1">
                 <div>
+                  <span className="font-bold">A/c Name:</span> {invoiceForm?.companyDetail?.accountName || "Account Name"}
+                </div>
+                <div>
                   <span className="font-bold">Bank Name:</span> {invoiceForm?.companyDetail?.bankName || "Bank Name"}
                 </div>
                 <div>
@@ -433,10 +436,7 @@ function FormalTemplate({
                   <span className="font-bold">IFSC:</span> {invoiceForm?.companyDetail?.ifscCode || "IFSC Code"}
                 </div>
                 <div>
-                  <span className="font-bold">Branch:</span> {invoiceForm?.companyDetail?.branch || "Branch Name"}
-                </div>
-                <div>
-                  <span className="font-bold">A/c Type:</span> {invoiceForm?.companyDetail?.accountType || "Current Account"}
+                  <span className="font-bold">Branch:</span> {invoiceForm?.companyDetail?.branchName || invoiceForm?.companyDetail?.branch || "Branch Name"}
                 </div>
               </div>
             </div>
