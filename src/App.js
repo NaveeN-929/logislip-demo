@@ -122,6 +122,12 @@ const App = () => {
   // If not signed in, show login page only at /signin
   // Removed console.log to prevent spam during re-renders
 
+  // Avoid rendering the private app shell on legal/public pages so consent screen links
+  // always show the landing-style pages even for signed-in users
+  const legalPaths = ["/privacy-policy", "/terms-of-service"];
+  const isLegalPath = legalPaths.includes(window.location.pathname);
+  const shouldShowPrivateApp = googleAuth.token && !isLegalPath;
+
   return (
     <BrowserRouter
       future={{
@@ -129,14 +135,8 @@ const App = () => {
         v7_relativeSplatPath: true,
       }}
     >
-      {/* Always-public legal pages (render outside app container, regardless of auth) */}
-      <Routes>
-        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-        <Route path="/terms-of-service" element={<TermsOfService />} />
-      </Routes>
-
-      {/* Only wrap authenticated routes in Container, so Navbar/Sidebar/toggle always work */}
-      {!googleAuth.token ? (
+      {/* Render either public+legal routes OR the private app shell (never both) */}
+      {(!googleAuth.token || isLegalPath) ? (
         <Routes>
           <Route
             path="/"
@@ -158,6 +158,8 @@ const App = () => {
               />
             }
           />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="/terms-of-service" element={<TermsOfService />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       ) : (
